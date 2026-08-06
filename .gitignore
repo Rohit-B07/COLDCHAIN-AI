@@ -1,0 +1,46 @@
+# ---- Dependencies & build output ----
+node_modules/
+.next/
+out/
+build/
+dist/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# ---- Environment & secrets ----
+.env
+.env.local
+.env.*.local
+!.env.example
+*.pem
+
+# ---- Editors / OS ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ---- Logs ----
+*.log
+logs/
+
+# ---- Coverage / reports ----
+.coverage
+htmlcov/
+coverage/
+
+# ---- Docs generated ----
+site/
+
+# ---- Misc ----
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.tsbuildinfo
+next-env.d.ts

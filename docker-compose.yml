@@ -1,0 +1,63 @@
+name: coldchain-ai
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: coldchain-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-coldchain}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-coldchain}
+      POSTGRES_DB: ${POSTGRES_DB:-coldchain}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-coldchain} -d ${POSTGRES_DB:-coldchain}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  backend:
+    build:
+      context: ./backend
+    container_name: coldchain-backend
+    restart: unless-stopped
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DEBUG: ${DEBUG:-true}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-coldchain}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-coldchain}
+      POSTGRES_DB: ${POSTGRES_DB:-coldchain}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      SECRET_KEY: ${SECRET_KEY:-dev-only-secret-change-me}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: coldchain-frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000/api/v1}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
