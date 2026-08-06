@@ -14,14 +14,14 @@ class PredictionRead(BaseModel):
     id: UUID
     shipment_id: UUID
     excursion_risk: float
-    risk_level: RiskLevel
+    risk_level: RiskLevel | str
     confidence: float
     expected_min_temp: float
     expected_max_temp: float
     model_version: str
     features: dict
     explanations: dict
-    created_at: datetime
+    created_at: datetime | None = None
 
 
 class RouteRead(BaseModel):
@@ -72,7 +72,7 @@ class AlertRead(BaseModel):
     status: str
     acknowledged_by: UUID | None
     acknowledged_at: datetime | None
-    created_at: datetime
+    created_at: datetime | None = None
 
 
 class RouteAlternatives(BaseModel):

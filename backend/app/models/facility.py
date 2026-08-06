@@ -1,10 +1,10 @@
 """Facility models: warehouses (origin) and primary health centres (destination)."""
 
 import enum
-from decimal import Decimal
+from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, Float, Integer, String
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -27,10 +27,16 @@ class Warehouse(TimestampMixin, Base):
     id: Mapped[UUID] = uuid_pk()
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     code: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)
-    latitude: Mapped[Decimal] = mapped_column(Float, nullable=False)
-    longitude: Mapped[Decimal] = mapped_column(Float, nullable=False)
+    latitude: Mapped[float] = mapped_column(Float, nullable=False)
+    longitude: Mapped[float] = mapped_column(Float, nullable=False)
     address: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     capacity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_deleted: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, index=True
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
 
 
 class PrimaryHealthCentre(TimestampMixin, Base):
@@ -47,9 +53,15 @@ class PrimaryHealthCentre(TimestampMixin, Base):
     code: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)
     district: Mapped[str] = mapped_column(String(128), nullable=False)
     state: Mapped[str] = mapped_column(String(128), nullable=False)
-    latitude: Mapped[Decimal] = mapped_column(Float, nullable=False)
-    longitude: Mapped[Decimal] = mapped_column(Float, nullable=False)
+    latitude: Mapped[float] = mapped_column(Float, nullable=False)
+    longitude: Mapped[float] = mapped_column(Float, nullable=False)
     contact: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     capacity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     priority_level: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     status: Mapped[str] = mapped_column(String(16), default=PHStatus.ACTIVE.value, nullable=False)
+    is_deleted: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, index=True
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )

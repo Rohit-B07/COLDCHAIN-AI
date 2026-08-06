@@ -19,7 +19,7 @@ from app.models.logistics import (
     VehicleStatus,
     VehicleType,
 )
-from app.models.prediction import Prediction, RiskLevel
+from app.models.prediction import Prediction
 from app.models.role import Role, user_roles
 from app.models.route import Route, Waypoint
 from app.models.shipment import Priority, Shipment, ShipmentStatus
@@ -38,7 +38,6 @@ __all__ = [
     "PrimaryHealthCentre",
     "Priority",
     "RefreshToken",
-    "RiskLevel",
     "Role",
     "Route",
     "Shipment",

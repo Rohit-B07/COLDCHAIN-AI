@@ -11,7 +11,12 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from app.core.exceptions import NotFoundError
-from app.domain.entities.intelligence import ColdAlert, Prediction, WeatherSnapshot, WarmRoute
+from app.domain.entities.intelligence import (
+    ColdAlert,
+    Prediction,
+    WarmRoute,
+    WeatherSnapshot,
+)
 from app.domain.entities.shipment import Shipment
 from app.domain.repositories import (
     AlertRepository,

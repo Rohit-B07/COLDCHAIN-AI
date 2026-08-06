@@ -41,6 +41,8 @@ def to_warehouse_entity(model) -> Warehouse:
         longitude=model.longitude,
         address=model.address,
         capacity=model.capacity,
+        is_deleted=model.is_deleted,
+        created_at=model.created_at,
     )
 
 
@@ -56,6 +58,8 @@ def to_phc_entity(model) -> PrimaryHealthCentre:
         contact=model.contact,
         capacity=model.capacity,
         priority_level=model.priority_level,
+        is_deleted=model.is_deleted,
+        created_at=model.created_at,
     )
 
 
@@ -67,6 +71,8 @@ def to_driver_entity(model) -> Driver:
         license_number=model.license_number,
         status=model.status,
         vehicle_id=model.vehicle_id,
+        is_deleted=model.is_deleted,
+        created_at=model.created_at,
     )
 
 
@@ -78,6 +84,11 @@ def to_vehicle_entity(model) -> Vehicle:
         capacity_kg=model.capacity_kg,
         is_reefer=model.is_reefer,
         status=model.status,
+        maintenance_status=model.maintenance_status,
+        last_maintenance_at=model.last_maintenance_at,
+        next_maintenance_due_at=model.next_maintenance_due_at,
+        is_deleted=model.is_deleted,
+        created_at=model.created_at,
     )
 
 
@@ -113,6 +124,8 @@ def to_shipment_entity(model) -> Shipment:
         delivered_at=model.delivered_at,
         estimated_delivery_at=model.estimated_delivery_at,
         created_at=model.created_at,
+        is_deleted=model.is_deleted,
+        deleted_at=model.deleted_at,
     )
 
 
@@ -154,6 +167,9 @@ def to_alert_entity(model) -> ColdAlert:
         shipment_id=model.shipment_id,
         container_id=model.container_id,
         status=model.status,
+        acknowledged_by=model.acknowledged_by,
+        acknowledged_at=model.acknowledged_at,
+        created_at=model.created_at,
     )
 
 
@@ -181,5 +197,10 @@ def to_route_entity(model: RouteModel) -> Route:
         weather_factor=float(model.weather_factor),
         safety_score=float(model.safety_score),
         is_selected=model.is_selected,
+        status=model.status_state,
+        optimization_metadata=dict(model.optimization_metadata or {}),
         waypoints=[to_waypoint_entity(w) for w in model.waypoints],
+        created_at=model.created_at,
+        is_deleted=model.is_deleted,
+        deleted_at=model.deleted_at,
     )

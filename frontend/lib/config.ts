@@ -27,8 +27,3 @@ export const apiConfig = {
   ),
   version: "v1",
 } as const;
-
-export function apiUrl(path: string): string {
-  const normalized = path.startsWith("/") ? path : `/${path}`;
-  return `${apiConfig.baseUrl}${normalized}`;
-}

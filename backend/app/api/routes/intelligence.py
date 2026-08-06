@@ -15,6 +15,7 @@ from app.core.exceptions import NotFoundError
 from app.domain.repositories import PredictionRepository
 from app.schemas.common import ApiResponse
 from app.schemas.intelligence import (
+    AlertCreate,
     AlertRead,
     PredictionRead,
     RouteRead,
@@ -119,9 +120,9 @@ async def plan_route(
     "", response_model=ApiResponse[WeatherRead], summary="Get weather intelligence for a location"
 )
 async def get_weather(
+    intelligence: Annotated[IntelligenceService, Depends(get_intelligence_service)],
     latitude: float = Query(ge=-90, le=90),
     longitude: float = Query(ge=-180, le=180),
-    intelligence: Annotated[IntelligenceService, Depends(get_intelligence_service)],
 ) -> ApiResponse[WeatherRead]:
     snapshot = await intelligence.weather_at(latitude, longitude)
     return ApiResponse(
@@ -141,8 +142,8 @@ async def get_weather(
 
 @alert_router.get("", response_model=ApiResponse[list[AlertRead]], summary="List cold-chain alerts")
 async def list_alerts(
-    status: str | None = Query(default=None),
     intelligence: Annotated[IntelligenceService, Depends(get_intelligence_service)],
+    status: str | None = Query(default=None),
 ) -> ApiResponse[list[AlertRead]]:
     alerts = await intelligence.list_alerts(status=status)
     return ApiResponse(

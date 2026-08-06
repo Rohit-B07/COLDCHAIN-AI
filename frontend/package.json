@@ -14,7 +14,13 @@
     "quality": "npm run lint && npm run typecheck"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.7.1",
+    "@radix-ui/react-avatar": "^1.2.6",
+    "@radix-ui/react-dropdown-menu": "^2.1.24",
+    "@radix-ui/react-label": "^2.1.15",
     "@radix-ui/react-slot": "^1.1.2",
+    "@tanstack/react-query": "^5.101.4",
+    "axios": "^1.19.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.468.0",
@@ -22,8 +28,11 @@
     "next-themes": "^0.4.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-hook-form": "^7.84.0",
+    "recharts": "^3.10.1",
     "tailwind-merge": "^2.6.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

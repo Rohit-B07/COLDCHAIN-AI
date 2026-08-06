@@ -1,12 +1,14 @@
 """Logistics assets: drivers, vehicles and cold containers."""
 
 import enum
+from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    DateTime,
     Float,
     ForeignKey,
     Index,
@@ -47,12 +49,20 @@ class Driver(TimestampMixin, Base):
     id: Mapped[UUID] = uuid_pk()
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     phone: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)
-    license_number: Mapped[str] = mapped_column(String(64), nullable=False)
-    status: Mapped[DriverStatus] = mapped_column(
+    license_number: Mapped[str] = mapped_column(
+        String(64), unique=True, index=True, nullable=False
+    )
+    status: Mapped[str] = mapped_column(
         String(24), nullable=False, default=DriverStatus.AVAILABLE.value
     )
     vehicle_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("vehicles.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    is_deleted: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, index=True
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
     )
 
     vehicle: Mapped["Vehicle"] = relationship(  # noqa: F821
@@ -74,6 +84,10 @@ class Vehicle(TimestampMixin, Base):
             "status IN ('active', 'maintenance', 'retired')",
             name="ck_vehicles_status",
         ),
+        CheckConstraint(
+            "maintenance_status IN ('ok', 'scheduled', 'in_progress', 'overdue')",
+            name="ck_vehicles_maintenance_status",
+        ),
         Index("ix_vehicles_type_status", "vehicle_type", "status"),
     )
 
@@ -81,13 +95,28 @@ class Vehicle(TimestampMixin, Base):
     registration_number: Mapped[str] = mapped_column(
         String(32), unique=True, index=True, nullable=False
     )
-    vehicle_type: Mapped[VehicleType] = mapped_column(
+    vehicle_type: Mapped[str] = mapped_column(
         String(32), nullable=False, default=VehicleType.REFRIGERATED_VAN.value
     )
     capacity_kg: Mapped[int] = mapped_column(Integer, nullable=False, default=500)
     is_reefer: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    status: Mapped[VehicleStatus] = mapped_column(
+    status: Mapped[str] = mapped_column(
         String(24), nullable=False, default=VehicleStatus.ACTIVE.value
+    )
+    maintenance_status: Mapped[str] = mapped_column(
+        String(24), nullable=False, default="ok"
+    )
+    last_maintenance_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    next_maintenance_due_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    is_deleted: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, index=True
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
     )
 
     driver: Mapped["Driver"] = relationship(  # noqa: F821

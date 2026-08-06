@@ -1,65 +1,41 @@
 /**
  * Typed API client for the ColdChain AI backend.
  *
- * Encapsulates fetch, error handling, and the standard response envelope so
- * that feature code only deals with typed domain objects. Swap the fetch
- * implementation here without touching callers.
+ * Thin wrapper over the shared Axios instance that unwraps the standard
+ * response envelope (`{ success, data }`) so feature code only deals with
+ * typed domain objects.
  */
 
-import { apiUrl } from "@/lib/config";
+import type { AxiosRequestConfig } from "axios";
 
-export class ApiError extends Error {
-  constructor(
-    public readonly status: number,
-    public readonly code: string,
-    message: string,
-  ) {
-    super(message);
-    this.name = "ApiError";
-  }
-}
+import { axiosClient } from "@/lib/api/axios";
+import type { ApiEnvelope } from "@/lib/types";
 
-export interface ApiEnvelope<T> {
-  success: boolean;
-  data: T | null;
-}
+export { ApiError, UNAUTHORIZED_EVENT } from "@/lib/api/axios";
+export type { ApiErrorDetail } from "@/lib/types";
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(apiUrl(path), {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...init.headers,
-    },
-    cache: "no-store",
+async function request<T>(
+  path: string,
+  config: AxiosRequestConfig = {},
+): Promise<T> {
+  const response = await axiosClient.request<ApiEnvelope<T>>({
+    url: path,
+    ...config,
   });
-
-  if (!response.ok) {
-    const payload = await response.json().catch(() => null);
-    const message =
-      payload?.message ?? `Request failed with status ${response.status}`;
-    throw new ApiError(
-      response.status,
-      payload?.error_code ?? "unknown",
-      message,
-    );
+  const envelope = response.data;
+  if (envelope.data === null) {
+    throw new TypeError("API response did not include a data payload");
   }
-
-  const envelope = (await response.json()) as ApiEnvelope<T>;
   return envelope.data as T;
 }
 
 export const apiClient = {
   get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body: unknown) =>
-    request<T>(path, {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
-  patch: <T>(path: string, body: unknown) =>
-    request<T>(path, {
-      method: "PATCH",
-      body: JSON.stringify(body),
-    }),
+  post: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: "POST", data: body }),
+  patch: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: "PATCH", data: body }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+  request: <T>(path: string, config: AxiosRequestConfig) =>
+    request<T>(path, config),
 };

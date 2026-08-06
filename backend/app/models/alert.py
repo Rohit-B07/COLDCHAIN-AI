@@ -33,13 +33,13 @@ class ColdAlert(TimestampMixin, Base):
     container_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("cold_containers.id", ondelete="CASCADE"), nullable=True, index=True
     )
-    severity: Mapped[AlertSeverity] = mapped_column(
-        String(16), nullable=False, default=AlertSeverity.INFO.value
+    severity: Mapped[str] = mapped_column(
+        "severity", String(16), nullable=False, default=AlertSeverity.INFO.value
     )
     alert_type: Mapped[str] = mapped_column(String(64), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
-    status: Mapped[AlertStatus] = mapped_column(
-        String(24), nullable=False, default=AlertStatus.OPEN.value
+    status: Mapped[str] = mapped_column(
+        "status", String(24), nullable=False, default=AlertStatus.OPEN.value
     )
     acknowledged_by: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True

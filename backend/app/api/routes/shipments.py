@@ -3,15 +3,27 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.api.deps.container import get_shipment_service
+from app.api.deps.rbac import require_permissions
 from app.domain.entities.shipment import Shipment as ShipmentEntity
-from app.schemas.common import ApiResponse
-from app.schemas.shipment import DispatchRequest, ShipmentCreate, ShipmentRead
+from app.domain.permissions import Permission
+from app.schemas.common import ApiResponse, Page
+from app.schemas.shipment import (
+    DispatchRequest,
+    ShipmentCreate,
+    ShipmentQueryParams,
+    ShipmentRead,
+    ShipmentUpdate,
+)
 from app.services.shipment_service import ShipmentService
 
 router = APIRouter(prefix="/shipments", tags=["shipments"])
+
+_ViewShipments = Depends(require_permissions(Permission.SHIPMENT_VIEW))
+_CreateShipments = Depends(require_permissions(Permission.SHIPMENT_CREATE))
+_ManageShipments = Depends(require_permissions(Permission.SHIPMENT_UPDATE))
 
 
 def _to_read(s: ShipmentEntity) -> ShipmentRead:
@@ -32,41 +44,61 @@ def _to_read(s: ShipmentEntity) -> ShipmentRead:
         delivered_at=s.delivered_at,
         estimated_delivery_at=s.estimated_delivery_at,
         created_at=s.created_at,
+        is_deleted=s.is_deleted,
+        deleted_at=s.deleted_at,
     )
 
 
-@router.get("", response_model=ApiResponse[list[ShipmentRead]], summary="List shipments")
+@router.get(
+    "",
+    response_model=ApiResponse[Page[ShipmentRead]],
+    summary="List shipments (paginated and filtered)",
+    dependencies=[_ViewShipments],
+)
 async def list_shipments(
+    params: Annotated[ShipmentQueryParams, Query()],
     service: Annotated[ShipmentService, Depends(get_shipment_service)],
-) -> ApiResponse[list[ShipmentRead]]:
-    shipments = await service.list()
-    return ApiResponse(data=[_to_read(s) for s in shipments])
+) -> ApiResponse[Page[ShipmentRead]]:
+    items, total = await service.list(
+        search=params.search,
+        status=params.status.value if params.status else None,
+        priority=params.priority.value if params.priority else None,
+        page=params.page,
+        size=params.size,
+    )
+    pages = (total + params.size - 1) // params.size if total else 0
+    return ApiResponse(
+        data=Page[ShipmentRead](
+            items=[_to_read(s) for s in items],
+            total=total,
+            page=params.page,
+            size=params.size,
+            pages=pages,
+        )
+    )
 
 
 @router.post(
-    "", response_model=ApiResponse[ShipmentRead], status_code=201, summary="Create a shipment"
+    "",
+    response_model=ApiResponse[ShipmentRead],
+    status_code=201,
+    summary="Create a shipment",
+    dependencies=[_CreateShipments],
 )
 async def create_shipment(
     payload: ShipmentCreate,
     service: Annotated[ShipmentService, Depends(get_shipment_service)],
 ) -> ApiResponse[ShipmentRead]:
-    entity = ShipmentEntity.create(
-        tracking_code=f"SHP-{payload.destination_id.hex[:8].upper()}-{abs(hash(payload.vaccine_name)) % 1000}",
-        vaccine_name=payload.vaccine_name,
-        dose_count=payload.dose_count,
-        warehouse_id=payload.warehouse_id,
-        destination_id=payload.destination_id,
-        priority=payload.priority,
-        temperature_min=payload.temperature_min,
-        temperature_max=payload.temperature_max,
-        container_id=payload.container_id,
-        driver_id=payload.driver_id,
-    )
-    saved = await service.create(entity)
+    saved = await service.create(payload)
     return ApiResponse(data=_to_read(saved))
 
 
-@router.get("/{shipment_id}", response_model=ApiResponse[ShipmentRead], summary="Get a shipment")
+@router.get(
+    "/{shipment_id}",
+    response_model=ApiResponse[ShipmentRead],
+    summary="Get a shipment",
+    dependencies=[_ViewShipments],
+)
 async def get_shipment(
     shipment_id: UUID,
     service: Annotated[ShipmentService, Depends(get_shipment_service)],
@@ -75,19 +107,59 @@ async def get_shipment(
     return ApiResponse(data=_to_read(shipment))
 
 
+@router.patch(
+    "/{shipment_id}",
+    response_model=ApiResponse[ShipmentRead],
+    summary="Update a shipment",
+    dependencies=[_ManageShipments],
+)
+async def update_shipment(
+    shipment_id: UUID,
+    payload: ShipmentUpdate,
+    service: Annotated[ShipmentService, Depends(get_shipment_service)],
+) -> ApiResponse[ShipmentRead]:
+    shipment = await service.update(shipment_id, payload)
+    return ApiResponse(data=_to_read(shipment))
+
+
 @router.post(
     "/{shipment_id}/dispatch",
     response_model=ApiResponse[ShipmentRead],
     summary="Dispatch a shipment with container and driver",
+    dependencies=[_ManageShipments],
 )
 async def dispatch_shipment(
     shipment_id: UUID,
     payload: DispatchRequest,
     service: Annotated[ShipmentService, Depends(get_shipment_service)],
 ) -> ApiResponse[ShipmentRead]:
-    shipment = await service.dispatch(
-        shipment_id=shipment_id,
-        container_id=payload.container_id,
-        driver_id=payload.driver_id,
-    )
+    shipment = await service.dispatch(shipment_id, payload)
+    return ApiResponse(data=_to_read(shipment))
+
+
+@router.post(
+    "/{shipment_id}/cancel",
+    response_model=ApiResponse[ShipmentRead],
+    summary="Cancel a shipment",
+    dependencies=[_ManageShipments],
+)
+async def cancel_shipment(
+    shipment_id: UUID,
+    service: Annotated[ShipmentService, Depends(get_shipment_service)],
+) -> ApiResponse[ShipmentRead]:
+    shipment = await service.cancel(shipment_id)
+    return ApiResponse(data=_to_read(shipment))
+
+
+@router.delete(
+    "/{shipment_id}",
+    response_model=ApiResponse[ShipmentRead],
+    summary="Soft-delete a shipment",
+    dependencies=[_ManageShipments],
+)
+async def delete_shipment(
+    shipment_id: UUID,
+    service: Annotated[ShipmentService, Depends(get_shipment_service)],
+) -> ApiResponse[ShipmentRead]:
+    shipment = await service.delete(shipment_id)
     return ApiResponse(data=_to_read(shipment))

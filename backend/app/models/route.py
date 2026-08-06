@@ -1,7 +1,6 @@
 """Route model: planned delivery geometry and scoring per shipment."""
 
 from datetime import datetime
-from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -32,23 +31,40 @@ class Route(TimestampMixin, Base):
         CheckConstraint("duration_minutes >= 0", name="ck_routes_duration_minutes"),
         CheckConstraint("weather_factor > 0", name="ck_routes_weather_factor"),
         CheckConstraint("safety_score BETWEEN 0 AND 100", name="ck_routes_safety_score"),
+        CheckConstraint(
+            "status IN ('planned', 'optimized', 'selected', 'completed', 'cancelled')",
+            name="ck_routes_status",
+        ),
     )
 
     id: Mapped[UUID] = uuid_pk()
     shipment_id: Mapped[UUID] = mapped_column(
         ForeignKey("shipments.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    distance_km: Mapped[Decimal] = mapped_column(Float, nullable=False, default=0.0)
+    distance_km: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     stops: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     polyline: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
-    weather_factor: Mapped[Decimal] = mapped_column(Float, nullable=False, default=1.0)
-    safety_score: Mapped[Decimal] = mapped_column(Float, nullable=False, default=0.0)
+    weather_factor: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    safety_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     is_selected: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    status_state: Mapped[str] = mapped_column(
+        "status", String(24), nullable=False, default="planned"
+    )
+    optimization_metadata: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    is_deleted: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, index=True
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
 
     shipment: Mapped["Shipment"] = relationship(back_populates="routes")
     waypoints: Mapped[list["Waypoint"]] = relationship(
-        back_populates="route", cascade="all, delete-orphan", order_by="Waypoint.sequence"
+        back_populates="route",
+        cascade="all, delete-orphan",
+        order_by="Waypoint.sequence",
+        lazy="selectin",
     )
 
 

@@ -5,12 +5,16 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
-from app.api.deps.auth import CurrentUser
 from app.api.deps.container import get_phc_repository, get_warehouse_repository
 from app.core.exceptions import NotFoundError
 from app.domain.repositories import PhCentreRepository, WarehouseRepository
 from app.schemas.common import ApiResponse
-from app.schemas.facility import PhCentreCreate, PhCentreRead, WarehouseCreate, WarehouseRead
+from app.schemas.facility import (
+    PhCentreCreate,
+    PhCentreRead,
+    WarehouseCreate,
+    WarehouseRead,
+)
 
 router = APIRouter(tags=["facilities"])
 

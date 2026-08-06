@@ -11,10 +11,16 @@ from app.api.deps.container import (
     get_vehicle_repository,
 )
 from app.core.exceptions import NotFoundError
-from app.domain.entities.logistics import ColdContainer as ContainerEntity
-from app.domain.entities.logistics import Driver as DriverEntity
-from app.domain.entities.logistics import Vehicle as VehicleEntity
-from app.domain.repositories import ContainerRepository, DriverRepository, VehicleRepository
+from app.domain.entities.logistics import (
+    ColdContainer as ContainerEntity,
+    Driver as DriverEntity,
+    Vehicle as VehicleEntity,
+)
+from app.domain.repositories import (
+    ContainerRepository,
+    DriverRepository,
+    VehicleRepository,
+)
 from app.schemas.common import ApiResponse
 from app.schemas.logistics import (
     ContainerCreate,

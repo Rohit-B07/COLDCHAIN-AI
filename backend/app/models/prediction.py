@@ -1,8 +1,6 @@
 """Prediction model: temperature-excursion risk for a shipment."""
 
-import enum
 from datetime import datetime
-from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -16,13 +14,6 @@ if TYPE_CHECKING:
     from app.models.shipment import Shipment
 
 
-class RiskLevel(str, enum.Enum):
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    CRITICAL = "critical"
-
-
 class Prediction(TimestampMixin, Base):
     __tablename__ = "predictions"
 
@@ -30,13 +21,13 @@ class Prediction(TimestampMixin, Base):
     shipment_id: Mapped[UUID] = mapped_column(
         ForeignKey("shipments.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    excursion_risk: Mapped[Decimal] = mapped_column(Float, nullable=False, default=0.0)
-    risk_level: Mapped[RiskLevel] = mapped_column(
-        String(16), nullable=False, default=RiskLevel.LOW.value
+    excursion_risk: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    risk_level: Mapped[str] = mapped_column(
+        "risk_level", String(16), nullable=False, default="low"
     )
-    confidence: Mapped[Decimal] = mapped_column(Float, nullable=False, default=0.0)
-    expected_min_temp: Mapped[Decimal] = mapped_column(Float, nullable=False, default=2.0)
-    expected_max_temp: Mapped[Decimal] = mapped_column(Float, nullable=False, default=8.0)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    expected_min_temp: Mapped[float] = mapped_column(Float, nullable=False, default=2.0)
+    expected_max_temp: Mapped[float] = mapped_column(Float, nullable=False, default=8.0)
     model_version: Mapped[str] = mapped_column(String(64), nullable=False, default="rule-based-v1")
     features: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     explanations: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)

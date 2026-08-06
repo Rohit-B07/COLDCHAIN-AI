@@ -1,17 +1,23 @@
 """SQLAlchemy async repositories for shipments, predictions and weather cache."""
 
+import builtins
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import NotFoundError
 from app.domain.entities.intelligence import Prediction, WeatherSnapshot
 from app.domain.entities.shipment import Shipment
 from app.models.prediction import Prediction as PredictionModel
 from app.models.shipment import Shipment as ShipmentModel
 from app.models.weather import WeatherCache as WeatherCacheModel
-from app.repositories.base import to_prediction_entity, to_shipment_entity, to_weather_entity
+from app.repositories.base import (
+    to_prediction_entity,
+    to_shipment_entity,
+    to_weather_entity,
+)
 
 
 class SqlAlchemyShipmentRepository:
@@ -42,27 +48,42 @@ class SqlAlchemyShipmentRepository:
 
     async def get(self, shipment_id: UUID) -> Shipment | None:
         result = await self._session.execute(
-            select(ShipmentModel).where(ShipmentModel.id == shipment_id)
+            select(ShipmentModel).where(
+                ShipmentModel.id == shipment_id,
+                ShipmentModel.is_deleted.is_(False),
+            )
+        )
+        model = result.scalar_one_or_none()
+        return to_shipment_entity(model) if model else None
+
+    async def get_by_tracking_code(self, tracking_code: str) -> Shipment | None:
+        result = await self._session.execute(
+            select(ShipmentModel).where(
+                ShipmentModel.tracking_code == tracking_code.strip().upper()
+            )
         )
         model = result.scalar_one_or_none()
         return to_shipment_entity(model) if model else None
 
     async def list(self) -> list[Shipment]:
         result = await self._session.execute(
-            select(ShipmentModel).order_by(ShipmentModel.created_at.desc())
+            select(ShipmentModel)
+            .where(ShipmentModel.is_deleted.is_(False))
+            .order_by(ShipmentModel.created_at.desc())
         )
         return [to_shipment_entity(model) for model in result.scalars().all()]
 
     async def update(self, entity: Shipment) -> Shipment:
-        result = await self._session.execute(
-            select(ShipmentModel).where(ShipmentModel.id == entity.shipment_id)
-        )
-        model = result.scalar_one_or_none()
+        model = await self._session.get(ShipmentModel, entity.shipment_id)
         if model is None:
-            return entity
+            raise NotFoundError("Shipment not found")
+        model.vaccine_name = entity.vaccine_name
+        model.dose_count = entity.dose_count
         model.priority = entity.priority.value
         model.temperature_min = entity.temperature_min
         model.temperature_max = entity.temperature_max
+        model.warehouse_id = entity.warehouse_id
+        model.destination_id = entity.destination_id
         model.container_id = entity.container_id
         model.driver_id = entity.driver_id
         model.status_state = entity.status.value
@@ -71,6 +92,72 @@ class SqlAlchemyShipmentRepository:
         model.estimated_delivery_at = entity.estimated_delivery_at
         await self._session.flush()
         return entity
+
+    async def count(
+        self,
+        *,
+        search: str | None = None,
+        status: str | None = None,
+        priority: str | None = None,
+    ) -> int:
+        query = self._apply_filters(
+            select(func.count(ShipmentModel.id)),
+            search=search,
+            status=status,
+            priority=priority,
+        ).where(ShipmentModel.is_deleted.is_(False))
+        result = await self._session.execute(query)
+        return int(result.scalar_one())
+
+    async def list_paginated(
+        self,
+        *,
+        search: str | None = None,
+        status: str | None = None,
+        priority: str | None = None,
+        offset: int = 0,
+        limit: int = 20,
+    ) -> builtins.list[Shipment]:
+        query = self._apply_filters(
+            select(ShipmentModel),
+            search=search,
+            status=status,
+            priority=priority,
+        ).where(ShipmentModel.is_deleted.is_(False))
+        query = query.order_by(ShipmentModel.created_at.desc()).offset(offset).limit(limit)
+        result = await self._session.execute(query)
+        return [to_shipment_entity(model) for model in result.scalars().all()]
+
+    async def soft_delete(self, shipment_id: UUID) -> Shipment | None:
+        model = await self._session.get(ShipmentModel, shipment_id)
+        if model is None:
+            return None
+        model.is_deleted = True
+        model.deleted_at = datetime.now(UTC)
+        await self._session.flush()
+        return to_shipment_entity(model)
+
+    def _apply_filters(
+        self,
+        query: Select,
+        *,
+        search: str | None,
+        status: str | None,
+        priority: str | None,
+    ) -> Select:
+        if search:
+            pattern = f"%{search.strip().lower()}%"
+            query = query.where(
+                or_(
+                    ShipmentModel.tracking_code.ilike(pattern),
+                    ShipmentModel.vaccine_name.ilike(pattern),
+                )
+            )
+        if status:
+            query = query.where(ShipmentModel.status_state == status.strip().lower())
+        if priority:
+            query = query.where(ShipmentModel.priority == priority.strip().lower())
+        return query
 
 
 class SqlAlchemyPredictionRepository:
@@ -96,6 +183,18 @@ class SqlAlchemyPredictionRepository:
         await self._session.flush()
         return entity
 
+    async def get(self, prediction_id: UUID) -> Prediction | None:
+        model = await self._session.get(PredictionModel, prediction_id)
+        return to_prediction_entity(model) if model else None
+
+    async def list_for_shipment(self, shipment_id: UUID) -> builtins.list[Prediction]:
+        result = await self._session.execute(
+            select(PredictionModel)
+            .where(PredictionModel.shipment_id == shipment_id)
+            .order_by(PredictionModel.created_at.desc())
+        )
+        return [to_prediction_entity(model) for model in result.scalars().all()]
+
     async def latest_for_shipment(self, shipment_id: UUID) -> Prediction | None:
         result = await self._session.execute(
             select(PredictionModel)
@@ -105,6 +204,81 @@ class SqlAlchemyPredictionRepository:
         )
         model = result.scalar_one_or_none()
         return to_prediction_entity(model) if model else None
+
+    async def count(
+        self,
+        *,
+        shipment_id: UUID | None = None,
+        risk_level: str | None = None,
+        model_version: str | None = None,
+    ) -> int:
+        query = self._apply_filters(
+            select(func.count(PredictionModel.id)),
+            shipment_id=shipment_id,
+            risk_level=risk_level,
+            model_version=model_version,
+        )
+        result = await self._session.execute(query)
+        return int(result.scalar_one())
+
+    async def list_paginated(
+        self,
+        *,
+        shipment_id: UUID | None = None,
+        risk_level: str | None = None,
+        model_version: str | None = None,
+        offset: int = 0,
+        limit: int = 20,
+    ) -> builtins.list[Prediction]:
+        query = self._apply_filters(
+            select(PredictionModel),
+            shipment_id=shipment_id,
+            risk_level=risk_level,
+            model_version=model_version,
+        )
+        query = query.order_by(PredictionModel.created_at.desc()).offset(offset).limit(limit)
+        result = await self._session.execute(query)
+        return [to_prediction_entity(model) for model in result.scalars().all()]
+
+    async def update(self, entity: Prediction) -> Prediction:
+        model = await self._session.get(PredictionModel, entity.prediction_id)
+        if model is None:
+            raise NotFoundError("Prediction not found")
+        model.excursion_risk = entity.excursion_risk
+        model.risk_level = entity.risk_level
+        model.confidence = entity.confidence
+        model.expected_min_temp = entity.expected_min_temp
+        model.expected_max_temp = entity.expected_max_temp
+        model.model_version = entity.model_version
+        model.features = entity.features
+        model.explanations = entity.explanations
+        await self._session.flush()
+        return entity
+
+    async def delete(self, prediction_id: UUID) -> Prediction | None:
+        model = await self._session.get(PredictionModel, prediction_id)
+        if model is None:
+            return None
+        entity = to_prediction_entity(model)
+        await self._session.delete(model)
+        await self._session.flush()
+        return entity
+
+    def _apply_filters(
+        self,
+        query: Select,
+        *,
+        shipment_id: UUID | None,
+        risk_level: str | None,
+        model_version: str | None,
+    ) -> Select:
+        if shipment_id is not None:
+            query = query.where(PredictionModel.shipment_id == shipment_id)
+        if risk_level:
+            query = query.where(PredictionModel.risk_level == risk_level.strip().lower())
+        if model_version:
+            query = query.where(PredictionModel.model_version == model_version.strip())
+        return query
 
 
 class SqlAlchemyWeatherCacheRepository:
