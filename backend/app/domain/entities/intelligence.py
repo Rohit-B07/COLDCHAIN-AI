@@ -146,6 +146,10 @@ class WeatherSnapshot:
     wind_kmh: float
     precipitation_mm: float
     is_mock: bool
+    source: str = "mock"
+    forecast: dict = field(default_factory=dict)
+    fetched_at: datetime | None = None
+    expires_at: datetime | None = None
 
 
 ALERT_SEVERITIES = ("info", "warning", "critical")

@@ -57,7 +57,11 @@ async def seed_roles(session: AsyncSession) -> int:
 async def seed_admin(session: AsyncSession) -> int:
     """Create the bootstrap admin user if its email is absent.
 
-    Returns 1 when the user was created, 0 when it already existed.
+    The legacy reserved-domain address ``admin@coldchain.local`` is renamed to
+    the current ``SEED_ADMIN_EMAIL`` when found, so an existing database carries
+    the fix forward instead of requiring manual data repair.
+
+    Returns 1 when the user was created or renamed, 0 when it already existed.
     """
     settings = get_settings()
     email = settings.SEED_ADMIN_EMAIL.strip().lower()
@@ -69,6 +73,20 @@ async def seed_admin(session: AsyncSession) -> int:
     )
     if result.scalar_one_or_none() is not None:
         return 0
+
+    legacy_email = "admin@coldchain.local"
+    if email != legacy_email:
+        legacy = (
+            await session.execute(
+                select(UserModel)
+                .options(selectinload(UserModel.roles))
+                .where(UserModel.email == legacy_email, UserModel.is_deleted.is_(False))
+            )
+        ).scalar_one_or_none()
+        if legacy is not None:
+            legacy.email = email
+            logger.info("Renamed seeded admin user %r -> %r", legacy_email, email)
+            return 1
 
     admin_role = (
         await session.execute(

@@ -1,17 +1,19 @@
 """Auth dependencies: current-user resolution and RBAC guard.
 
-Uses the OAuth2 password bearer scheme: Swagger's *Authorize* dialog points at
-``POST /api/v1/auth/token`` and protected routes read ``Authorization: Bearer``.
+Uses an HTTP bearer security scheme: Swagger's *Authorize* dialog stores a
+bearer token and protected routes read ``Authorization: Bearer``. The scheme is
+declared as plain HTTP bearer (not OAuth2 password flow) because the token
+endpoint returns an enveloped response that Swagger's OAuth2 client cannot
+parse; bearer auth attaches the header directly.
 """
 
 from typing import Annotated
 
-from fastapi import Depends
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import InvalidTokenError
 
 from app.api.deps.container import get_user_repository
-from app.core.config import get_settings
 from app.core.exceptions import (
     AuthenticationError,
     AuthorizationError,
@@ -21,10 +23,22 @@ from app.core.security import decode_token, subject_to_uuid
 from app.domain.entities.user import User
 from app.domain.repositories import UserRepository
 
-oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl=f"{get_settings().API_V1_STR}/auth/token",
-    auto_error=False,
-)
+
+class _BearerToken(HTTPBearer):
+    """HTTP bearer scheme that yields the raw token string.
+
+    ``HTTPBearer`` returns ``HTTPAuthorizationCredentials``; subclasses it to
+    hand back just the token so downstream code keeps receiving ``str | None``.
+    """
+
+    async def __call__(self, request: Request) -> str | None:  # type: ignore[override]
+        credentials: HTTPAuthorizationCredentials | None = await super().__call__(
+            request
+        )
+        return credentials.credentials if credentials is not None else None
+
+
+oauth2_scheme = _BearerToken(auto_error=False)
 
 
 async def get_current_user(

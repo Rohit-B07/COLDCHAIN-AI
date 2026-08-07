@@ -5,6 +5,22 @@ export interface HealthResponse {
   database: string;
 }
 
+/** Current weather snapshot returned by `/weather`. */
+export interface WeatherRead {
+  latitude: number;
+  longitude: number;
+  temperature_c: number;
+  precipitation_mm: number;
+  wind_kmh: number;
+  humidity_pct: number;
+  condition: string;
+  source: string;
+  forecast: Record<string, unknown>;
+  is_mock: boolean;
+  fetched_at: string | null;
+  expires_at: string | null;
+}
+
 export interface Shipment {
   shipment_id: string;
   origin: string;
@@ -90,11 +106,7 @@ export type ShipmentStatus =
 export type PriorityLevel = "low" | "medium" | "high";
 
 export type RouteStatus =
-  | "planned"
-  | "optimized"
-  | "selected"
-  | "completed"
-  | "cancelled";
+  "planned" | "optimized" | "selected" | "completed" | "cancelled";
 
 export type VehicleStatus = "active" | "maintenance" | "retired";
 

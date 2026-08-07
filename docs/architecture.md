@@ -92,7 +92,14 @@ keeping feature code declarative.
 
 ## Evolution path
 
-1. Domain model for shipments, batches, sensors, routes.
-2. ML service (excursion prediction) as an isolated module behind a port.
-3. Auth (JWT) wired through `app/core/security.py`.
-4. Background telemetry ingestion (message queue) for nationwide scale.
+The [roadmap](roadmap.md) tracks delivery phase by phase. High-level direction:
+
+1. ~~Domain model for shipments, batches, sensors, routes~~ — done (Phase 2).
+2. ~~Auth (JWT) wired through `app/core/security.py`~~ — done (Phase 3).
+3. ~~Excursion-prediction engine behind an isolated, swappable port~~ — done
+   (Phase 5.4): the rule engine (`score_excursion_risk`) is the scoring port;
+   an XGBoost model can replace it behind the same interface.
+4. Route recommendation engine (safe-route scoring + alternatives) — next
+   (Phase 6).
+5. Background telemetry ingestion (message queue) for nationwide scale.
+6. ML model swap behind the prediction and route scoring ports.

@@ -47,12 +47,12 @@ from app.repositories.route import (
 from app.repositories.shipment import (
     SqlAlchemyPredictionRepository,
     SqlAlchemyShipmentRepository,
-    SqlAlchemyWeatherCacheRepository,
 )
 from app.repositories.user import (
     SqlAlchemyRefreshTokenRepository,
     SqlAlchemyUserRepository,
 )
+from app.repositories.weather import SqlAlchemyWeatherCacheRepository
 from app.services.alert_service import AlertService
 from app.services.auth_service import AuthService
 from app.services.driver_service import DriverService
@@ -64,6 +64,7 @@ from app.services.shipment_service import ShipmentService
 from app.services.user_service import UserService
 from app.services.vehicle_service import VehicleService
 from app.services.warehouse_service import WarehouseService
+from app.services.weather_service import WeatherService
 from app.use_cases.health import CheckHealth
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]
@@ -135,6 +136,12 @@ def get_alert_repository(db: DbSession) -> AlertRepository:
     return SqlAlchemyAlertRepository(db)
 
 
+def get_weather_service(
+    weather_repo: Annotated[WeatherCacheRepository, Depends(get_weather_repository)],
+) -> WeatherService:
+    return WeatherService(weather_repo=weather_repo)
+
+
 def get_auth_service(
     users: Annotated[UserRepository, Depends(get_user_repository)],
     tokens: Annotated[RefreshTokenRepository, Depends(get_refresh_token_repository)],
@@ -145,14 +152,20 @@ def get_auth_service(
 def get_intelligence_service(
     prediction_repo: Annotated[PredictionRepository, Depends(get_prediction_repository)],
     shipment_repo: Annotated[ShipmentRepository, Depends(get_shipment_repository)],
-    weather_repo: Annotated[WeatherCacheRepository, Depends(get_weather_repository)],
+    weather_service: Annotated[WeatherService, Depends(get_weather_service)],
     alert_repo: Annotated[AlertRepository, Depends(get_alert_repository)],
+    warehouses: Annotated[WarehouseRepository, Depends(get_warehouse_repository)],
+    phcs: Annotated[PhCentreRepository, Depends(get_phc_repository)],
+    containers: Annotated[ContainerRepository, Depends(get_container_repository)],
 ) -> IntelligenceService:
     return IntelligenceService(
         prediction_repo=prediction_repo,
         shipment_repo=shipment_repo,
-        weather_repo=weather_repo,
+        weather_service=weather_service,
         alert_repo=alert_repo,
+        warehouse_repo=warehouses,
+        phc_repo=phcs,
+        container_repo=containers,
     )
 
 

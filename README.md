@@ -118,7 +118,10 @@ pre-commit is configured; install it once with `pre-commit install`.
 
 ## Status
 
-Foundation phase only — the skeleton, CI-ready tooling, and a wiring example
-(health endpoint spanning domain → use case → repository → API) are in place.
-Business features (excursion prediction, route recommendation) will be built on
-this foundation next.
+Phases 1–5.4 are complete: the foundation, core domain, authentication & RBAC,
+facility/logistics/shipment management, weather service, alerting, the
+operations dashboard, and the **temperature excursion prediction engine**
+(rule-based, explainable, RBAC-protected) are all shipped with tests.
+
+**Next: Phase 6 — Route Recommendation Engine** (safest-route scoring with
+alternatives, persistence and a routes UI). See [Roadmap](docs/roadmap.md).

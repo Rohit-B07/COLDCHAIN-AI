@@ -48,8 +48,11 @@ class WeatherRead(BaseModel):
     wind_kmh: float
     humidity_pct: float
     condition: str
+    source: str = "mock"
+    forecast: dict = Field(default_factory=dict)
     is_mock: bool
     fetched_at: datetime | None = None
+    expires_at: datetime | None = None
 
 
 class AlertCreate(BaseModel):

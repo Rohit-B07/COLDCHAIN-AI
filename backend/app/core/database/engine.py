@@ -5,7 +5,13 @@ behaviour is fully environment-driven so operators can tune concurrency without
 touching code.
 """
 
+import asyncio
+import sys
+
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 from app.core.config import get_settings
 

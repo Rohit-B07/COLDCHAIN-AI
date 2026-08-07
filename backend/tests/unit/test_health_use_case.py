@@ -10,19 +10,19 @@ class FakeHealthRepository(HealthRepository):
     def __init__(self, reachable: bool = True) -> None:
         self._reachable = reachable
 
-    def ping(self) -> bool:
+    async def ping(self) -> bool:
         return self._reachable
 
 
 class TestCheckHealth:
-    def test_reports_ok_when_database_reachable(self) -> None:
+    async def test_reports_ok_when_database_reachable(self) -> None:
         use_case = CheckHealth(health_repo=FakeHealthRepository(reachable=True))
-        result = use_case.execute()
+        result = await use_case.execute()
         assert result.status == "ok"
         assert result.database == "ok"
 
-    def test_reports_db_unavailable_when_not_reachable(self) -> None:
+    async def test_reports_db_unavailable_when_not_reachable(self) -> None:
         use_case = CheckHealth(health_repo=FakeHealthRepository(reachable=False))
-        result = use_case.execute()
+        result = await use_case.execute()
         assert result.status == "ok"
         assert result.database == "unavailable"

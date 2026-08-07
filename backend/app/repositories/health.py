@@ -16,5 +16,11 @@ class SqlAlchemyHealthRepository(HealthRepository):
         try:
             await self._session.execute(text("SELECT 1"))
             return True
-        except Exception:
+        except Exception as exc:
+            import traceback
+
+            print("\n========== DATABASE HEALTH CHECK FAILED ==========")
+            traceback.print_exc()
+            print(f"Exception: {exc!r}")
+            print("==================================================")
             return False

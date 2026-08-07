@@ -12,7 +12,7 @@ from app.use_cases.health import CheckHealth
 
 
 class _FakeRepo:
-    def ping(self) -> bool:
+    async def ping(self) -> bool:
         return True
 
 

@@ -1,4 +1,5 @@
 import { HealthStatusCard } from "@/features/health";
+import { WeatherCard } from "@/features/weather";
 import { siteConfig } from "@/lib/config";
 
 export default function HomePage() {
@@ -15,6 +16,7 @@ export default function HomePage() {
 
       <section className="mt-12 grid gap-6 md:grid-cols-3">
         <HealthStatusCard />
+        <WeatherCard latitude={18.9388} longitude={72.8355} />
       </section>
     </div>
   );

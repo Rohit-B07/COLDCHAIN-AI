@@ -14,6 +14,7 @@ import {
 
 import { AlertSeverityChart } from "@/components/dashboard/alert-severity-chart";
 import { ChartCard } from "@/components/dashboard/chart-card";
+import { PredictionRiskChart } from "@/components/dashboard/prediction-risk-chart";
 import { ShipmentStatusChart } from "@/components/dashboard/shipment-status-chart";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { TemperatureTrendChart } from "@/components/dashboard/temperature-trend-chart";
@@ -28,7 +29,12 @@ import {
   useVehicles,
   useWarehouses,
 } from "@/hooks/use-dashboard";
-import type { AlertRead, PredictionRead, ShipmentRead, VehicleRead } from "@/lib/types";
+import type {
+  AlertRead,
+  PredictionRead,
+  ShipmentRead,
+  VehicleRead,
+} from "@/lib/types";
 
 const ACTIVE_ROUTE_STATUSES = ["planned", "optimized", "selected"];
 const ACTIVE_ALERT_STATUSES = ["open", "acknowledged"];
@@ -83,6 +89,14 @@ function temperatureTrendData(predictions: PredictionRead[]) {
     }));
 }
 
+function predictionRiskData(predictions: PredictionRead[]) {
+  const counts = groupBy(predictions, (p) => p.risk_level);
+  const order = ["low", "medium", "high", "critical"];
+  return order
+    .filter((name) => counts[name] !== undefined)
+    .map((name) => ({ name, value: counts[name] as number }));
+}
+
 export default function DashboardPage() {
   const shipments = useShipments();
   const routes = useRoutes();
@@ -93,7 +107,10 @@ export default function DashboardPage() {
   const alerts = useAlerts();
   const predictions = usePredictions();
 
-  const shipmentItems = useMemo(() => shipments.data?.items ?? [], [shipments.data]);
+  const shipmentItems = useMemo(
+    () => shipments.data?.items ?? [],
+    [shipments.data],
+  );
   const activeRouteCount = useMemo(
     () =>
       (routes.data?.items ?? []).filter((r) =>
@@ -101,7 +118,10 @@ export default function DashboardPage() {
       ).length,
     [routes.data],
   );
-  const vehicleItems = useMemo(() => vehicles.data?.items ?? [], [vehicles.data]);
+  const vehicleItems = useMemo(
+    () => vehicles.data?.items ?? [],
+    [vehicles.data],
+  );
   const alertItems = useMemo(() => alerts.data?.items ?? [], [alerts.data]);
   const predictionItems = useMemo(
     () => predictions.data?.items ?? [],
@@ -109,11 +129,16 @@ export default function DashboardPage() {
   );
 
   const totalOpenAlerts = useMemo(
-    () => alertItems.filter((a) => ACTIVE_ALERT_STATUSES.includes(a.status)).length,
+    () =>
+      alertItems.filter((a) => ACTIVE_ALERT_STATUSES.includes(a.status)).length,
     [alertItems],
   );
   const criticalAlerts = useMemo(
-    () => alertItems.filter((a) => a.severity === "critical" && ACTIVE_ALERT_STATUSES.includes(a.status)).length,
+    () =>
+      alertItems.filter(
+        (a) =>
+          a.severity === "critical" && ACTIVE_ALERT_STATUSES.includes(a.status),
+      ).length,
     [alertItems],
   );
   const avgRisk = useMemo(() => {
@@ -131,7 +156,10 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      <section aria-label="Summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section
+        aria-label="Summary"
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+      >
         <StatCard
           title="Shipments"
           icon={PackageSearch}
@@ -240,7 +268,9 @@ export default function DashboardPage() {
           onRetry={() => void vehicles.refetch()}
           emptyMessage="No vehicles recorded"
         >
-          <VehicleUtilizationChart data={vehicleUtilizationData(vehicleItems)} />
+          <VehicleUtilizationChart
+            data={vehicleUtilizationData(vehicleItems)}
+          />
         </ChartCard>
 
         <ChartCard
@@ -253,6 +283,18 @@ export default function DashboardPage() {
           emptyMessage="No predictions recorded"
         >
           <TemperatureTrendChart data={temperatureTrendData(predictionItems)} />
+        </ChartCard>
+
+        <ChartCard
+          title="Prediction Risk"
+          description="Excursion risk level distribution"
+          isLoading={predictions.isLoading}
+          isError={predictions.isError}
+          isEmpty={predictionItems.length === 0}
+          onRetry={() => void predictions.refetch()}
+          emptyMessage="No predictions recorded"
+        >
+          <PredictionRiskChart data={predictionRiskData(predictionItems)} />
         </ChartCard>
       </section>
     </div>

@@ -25,6 +25,7 @@ class WeatherCache(TimestampMixin, Base):
     wind_kmh: Mapped[Decimal] = mapped_column(Float, nullable=False, default=0.0)
     humidity_pct: Mapped[Decimal] = mapped_column(Float, nullable=False, default=0.0)
     condition: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    source: Mapped[str] = mapped_column(String(32), nullable=False, default="mock")
     forecast: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     is_mock: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

@@ -72,6 +72,7 @@ RBAC_PATH_POLICY: dict[tuple[str, str], Permission | None] = {
     ("PATCH", "/api/v1/alerts"): Permission.ALERT_ACKNOWLEDGE,
     ("DELETE", "/api/v1/alerts"): Permission.ALERT_MANAGE,
     ("GET", "/api/v1/audit"): Permission.AUDIT_VIEW,
+    ("GET", "/api/v1/weather"): Permission.WEATHER_VIEW,
     ("GET", "/api/v1/users/me"): None,
     ("PATCH", "/api/v1/users/me"): None,
     ("POST", "/api/v1/users/me/change-password"): None,

@@ -1,11 +1,14 @@
 """Unit tests for domain value objects and entities (pure logic, no DB)."""
 
+from uuid import uuid4
+
 import pytest
 
 from app.domain.entities.shipment import Shipment
 from app.domain.value_objects import (
     ExcursionReport,
     GeoCoordinate,
+    ShipmentStatus,
     TemperatureReading,
 )
 
@@ -44,24 +47,42 @@ class TestExcursionReport:
             ExcursionReport(predicted=True, confidence=0.5, risk_level="critical")
 
 
+def _shipment(**overrides: object) -> Shipment:
+    return Shipment.create(
+        tracking_code=overrides.get("tracking_code", "SHP-TEST01"),
+        vaccine_name=overrides.get("vaccine_name", "BCG Vaccine"),
+        dose_count=overrides.get("dose_count", 100),
+        warehouse_id=overrides.get("warehouse_id", uuid4()),
+        destination_id=overrides.get("destination_id", uuid4()),
+        container_id=overrides.get("container_id"),
+        driver_id=overrides.get("driver_id"),
+    )
+
+
 class TestShipment:
     def test_create_sets_initial_state(self) -> None:
-        shipment = Shipment.create(origin="Delhi", destination="Jaipur")
-        assert shipment.status == "created"
+        shipment = _shipment()
+        assert shipment.status == ShipmentStatus.CREATED
         assert shipment.dispatched_at is None
 
-    def test_create_requires_origin_and_destination(self) -> None:
+    def test_create_requires_tracking_code_and_vaccine(self) -> None:
         with pytest.raises(ValueError):
-            Shipment.create(origin="", destination="Jaipur")
+            _shipment(tracking_code="")
+        with pytest.raises(ValueError):
+            _shipment(vaccine_name="")
 
     def test_dispatch_transitions_state(self) -> None:
-        shipment = Shipment.create(origin="Delhi", destination="Jaipur")
+        shipment = _shipment(container_id=uuid4(), driver_id=uuid4())
         shipment.dispatch()
-        assert shipment.status == "dispatched"
+        assert shipment.status == ShipmentStatus.DISPATCHED
         assert shipment.dispatched_at is not None
 
     def test_cannot_dispatch_twice(self) -> None:
-        shipment = Shipment.create(origin="Delhi", destination="Jaipur")
+        shipment = _shipment(container_id=uuid4(), driver_id=uuid4())
         shipment.dispatch()
         with pytest.raises(ValueError):
             shipment.dispatch()
+
+    def test_dispatch_requires_container_and_driver(self) -> None:
+        with pytest.raises(ValueError):
+            _shipment().dispatch()

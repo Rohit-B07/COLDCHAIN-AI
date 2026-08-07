@@ -1,4 +1,4 @@
-"""Intelligence endpoints: excursion predictions, route optimisation, weather and alerts."""
+"""Intelligence endpoints: excursion predictions, route optimisation and alerts."""
 
 from typing import Annotated
 from uuid import UUID
@@ -11,7 +11,9 @@ from app.api.deps.container import (
     get_prediction_repository,
     get_shipment_service,
 )
+from app.api.deps.rbac import require_permissions
 from app.core.exceptions import NotFoundError
+from app.domain.permissions import Permission
 from app.domain.repositories import PredictionRepository
 from app.schemas.common import ApiResponse
 from app.schemas.intelligence import (
@@ -19,7 +21,6 @@ from app.schemas.intelligence import (
     AlertRead,
     PredictionRead,
     RouteRead,
-    WeatherRead,
 )
 from app.schemas.shipment import AlertsOutcome
 from app.services.intelligence_service import IntelligenceService
@@ -29,12 +30,17 @@ router = APIRouter(tags=["intelligence"])
 
 prediction_router = APIRouter(prefix="/shipments/{shipment_id}/prediction")
 route_router = APIRouter(prefix="/shipments/{shipment_id}/route")
-weather_router = APIRouter(prefix="/weather")
 alert_router = APIRouter(prefix="/alerts")
+
+_ViewPredictions = Depends(require_permissions(Permission.PREDICTION_VIEW))
+_ManagePredictions = Depends(require_permissions(Permission.PREDICTION_MANAGE))
 
 
 @prediction_router.get(
-    "", response_model=ApiResponse[PredictionRead], summary="Get the latest risk prediction"
+    "",
+    response_model=ApiResponse[PredictionRead],
+    summary="Get the latest risk prediction",
+    dependencies=[_ViewPredictions],
 )
 async def get_prediction(
     shipment_id: UUID,
@@ -61,7 +67,10 @@ async def get_prediction(
 
 
 @prediction_router.post(
-    "", response_model=ApiResponse[PredictionRead], summary="Compute a fresh excursion risk prediction"
+    "",
+    response_model=ApiResponse[PredictionRead],
+    summary="Compute a fresh excursion risk prediction",
+    dependencies=[_ManagePredictions],
 )
 async def create_prediction(
     shipment_id: UUID,
@@ -112,30 +121,6 @@ async def plan_route(
             weather_factor=route.weather_factor,
             safety_score=route.safety_score,
             is_selected=route.is_selected,
-        )
-    )
-
-
-@weather_router.get(
-    "", response_model=ApiResponse[WeatherRead], summary="Get weather intelligence for a location"
-)
-async def get_weather(
-    intelligence: Annotated[IntelligenceService, Depends(get_intelligence_service)],
-    latitude: float = Query(ge=-90, le=90),
-    longitude: float = Query(ge=-180, le=180),
-) -> ApiResponse[WeatherRead]:
-    snapshot = await intelligence.weather_at(latitude, longitude)
-    return ApiResponse(
-        data=WeatherRead(
-            latitude=snapshot.latitude,
-            longitude=snapshot.longitude,
-            temperature_c=snapshot.temperature_c,
-            precipitation_mm=snapshot.precipitation_mm,
-            wind_kmh=snapshot.wind_kmh,
-            humidity_pct=snapshot.humidity_pct,
-            condition=snapshot.condition,
-            is_mock=snapshot.is_mock,
-            fetched_at=None,
         )
     )
 

@@ -7,6 +7,7 @@ from app.api.routes import (
     auth,
     drivers,
     health,
+    intelligence,
     phcs,
     predictions,
     routes,
@@ -14,6 +15,7 @@ from app.api.routes import (
     users,
     vehicles,
     warehouses,
+    weather,
 )
 
 api_router = APIRouter()
@@ -28,3 +30,5 @@ api_router.include_router(shipments.router)
 api_router.include_router(routes.router)
 api_router.include_router(predictions.router)
 api_router.include_router(alerts.router)
+api_router.include_router(weather.router)
+api_router.include_router(intelligence.prediction_router)

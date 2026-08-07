@@ -1,0 +1,57 @@
+warning: in the working copy of 'backend/app/api/deps/auth.py', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/backend/app/api/deps/auth.py b/backend/app/api/deps/auth.py[m
+[1mindex 9c5255d..a1d8959 100644[m
+[1m--- a/backend/app/api/deps/auth.py[m
+[1m+++ b/backend/app/api/deps/auth.py[m
+[36m@@ -1,17 +1,19 @@[m
+ """Auth dependencies: current-user resolution and RBAC guard.[m
+ [m
+[31m-Uses the OAuth2 password bearer scheme: Swagger's *Authorize* dialog points at[m
+[31m-``POST /api/v1/auth/token`` and protected routes read ``Authorization: Bearer``.[m
+[32m+[m[32mUses an HTTP bearer security scheme: Swagger's *Authorize* dialog stores a[m
+[32m+[m[32mbearer token and protected routes read ``Authorization: Bearer``. The scheme is[m
+[32m+[m[32mdeclared as plain HTTP bearer (not OAuth2 password flow) because the token[m
+[32m+[m[32mendpoint returns an enveloped response that Swagger's OAuth2 client cannot[m
+[32m+[m[32mparse; bearer auth attaches the header directly.[m
+ """[m
+ [m
+ from typing import Annotated[m
+ [m
+[31m-from fastapi import Depends[m
+[31m-from fastapi.security import OAuth2PasswordBearer[m
+[32m+[m[32mfrom fastapi import Depends, Request[m
+[32m+[m[32mfrom fastapi.security import HTTPAuthorizationCredentials, HTTPBearer[m
+ from jwt import InvalidTokenError[m
+ [m
+ from app.api.deps.container import get_user_repository[m
+[31m-from app.core.config import get_settings[m
+ from app.core.exceptions import ([m
+     AuthenticationError,[m
+     AuthorizationError,[m
+[36m@@ -21,10 +23,22 @@[m [mfrom app.core.security import decode_token, subject_to_uuid[m
+ from app.domain.entities.user import User[m
+ from app.domain.repositories import UserRepository[m
+ [m
+[31m-oauth2_scheme = OAuth2PasswordBearer([m
+[31m-    tokenUrl=f"{get_settings().API_V1_STR}/auth/token",[m
+[31m-    auto_error=False,[m
+[31m-)[m
+[32m+[m
+[32m+[m[32mclass _BearerToken(HTTPBearer):[m
+[32m+[m[32m    """HTTP bearer scheme that yields the raw token string.[m
+[32m+[m
+[32m+[m[32m    ``HTTPBearer`` returns ``HTTPAuthorizationCredentials``; subclasses it to[m
+[32m+[m[32m    hand back just the token so downstream code keeps receiving ``str | None``.[m
+[32m+[m[32m    """[m
+[32m+[m
+[32m+[m[32m    async def __call__(self, request: Request) -> str | None:  # type: ignore[override][m
+[32m+[m[32m        credentials: HTTPAuthorizationCredentials | None = await super().__call__([m
+[32m+[m[32m            request[m
+[32m+[m[32m        )[m
+[32m+[m[32m        return credentials.credentials if credentials is not None else None[m
+[32m+[m
+[32m+[m
+[32m+[m[32moauth2_scheme = _BearerToken(auto_error=False)[m
+ [m
+ [m
+ async def get_current_user([m

@@ -3,13 +3,15 @@
 Implements the explainable, rule-based engine behind the AI features. The rule
 engine is modular by design: it scores risk from a set of weighted rules and
 records per-rule contributions so recommendations are explainable. A future
-XGBoost model can replace `_score_risk` behind the same interface.
+XGBoost model can replace the scoring function behind the same interface.
 """
 
 import math
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
+from app.core.config import Settings, get_settings
 from app.core.exceptions import NotFoundError
 from app.domain.entities.intelligence import (
     ColdAlert,
@@ -20,13 +22,55 @@ from app.domain.entities.intelligence import (
 from app.domain.entities.shipment import Shipment
 from app.domain.repositories import (
     AlertRepository,
+    ContainerRepository,
+    PhCentreRepository,
     PredictionRepository,
     ShipmentRepository,
-    WeatherCacheRepository,
+    WarehouseRepository,
 )
 from app.domain.value_objects import RiskLevel
+from app.services.weather_service import WeatherService
 
 RULE_BASED_MODEL_VERSION = "rule-based-v1"
+
+
+@dataclass(frozen=True)
+class PredictionRules:
+    """Configurable weights and thresholds for the rule-based risk model."""
+
+    temperature_weight: float = 0.50
+    duration_weight: float = 0.35
+    stop_weight: float = 0.15
+    base_risk: float = 0.10
+    priority_boost: float = 0.10
+    max_exposure_degrees: float = 20.0
+    max_distance_km: float = 300.0
+    max_stops: int = 10
+    default_distance_km: float = 50.0
+    default_stops: int = 2
+    confidence_live: float = 0.90
+    confidence_mock: float = 0.60
+    risk_high_threshold: float = 0.45
+    risk_critical_threshold: float = 0.70
+    risk_medium_threshold: float = 0.20
+
+    @classmethod
+    def from_settings(cls, settings: Settings) -> "PredictionRules":
+        """Build rule weights from application configuration."""
+        return cls(
+            temperature_weight=settings.PREDICTION_TEMPERATURE_WEIGHT,
+            duration_weight=settings.PREDICTION_DURATION_WEIGHT,
+            stop_weight=settings.PREDICTION_STOP_WEIGHT,
+            base_risk=settings.PREDICTION_BASE_RISK,
+            priority_boost=settings.PREDICTION_PRIORITY_BOOST,
+            max_exposure_degrees=settings.PREDICTION_MAX_EXPOSURE_DEGREES,
+            max_distance_km=settings.PREDICTION_MAX_DISTANCE_KM,
+            max_stops=settings.PREDICTION_MAX_STOPS,
+            default_distance_km=settings.PREDICTION_DEFAULT_DISTANCE_KM,
+            default_stops=settings.PREDICTION_DEFAULT_STOPS,
+            confidence_live=settings.PREDICTION_CONFIDENCE_LIVE,
+            confidence_mock=settings.PREDICTION_CONFIDENCE_MOCK,
+        )
 
 
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -40,14 +84,78 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * radius * math.asin(math.sqrt(a))
 
 
-def _risk_level(score: float) -> str:
-    if score >= 0.7:
+def _risk_level(score: float, rules: PredictionRules) -> str:
+    if score >= rules.risk_critical_threshold:
         return RiskLevel.CRITICAL.value
-    if score >= 0.45:
+    if score >= rules.risk_high_threshold:
         return RiskLevel.HIGH.value
-    if score >= 0.2:
+    if score >= rules.risk_medium_threshold:
         return RiskLevel.MEDIUM.value
     return RiskLevel.LOW.value
+
+
+def score_excursion_risk(
+    *,
+    temperature_delta: float,
+    distance_km: float,
+    stops: int,
+    priority: str,
+    rules: PredictionRules,
+) -> tuple[float, dict, dict]:
+    """Score excursion risk from a set of weighted, explainable rules.
+
+    Returns ``(risk, features, explanations)``. Risk is bounded to ``[0, 1]``;
+    each rule records its individual contribution so the recommendation can be
+    audited. ``temperature_delta`` is the ambient temperature's deviation from
+    the shipment's safe band (0 when inside the band).
+    """
+    exposure = min(1.0, temperature_delta / rules.max_exposure_degrees)
+    duration_factor = min(1.0, distance_km / rules.max_distance_km)
+    stop_factor = min(1.0, stops / rules.max_stops)
+    priority_boost = rules.priority_boost if priority == "high" else 0.0
+
+    risk = (
+        exposure * rules.temperature_weight
+        + duration_factor * rules.duration_weight
+        + stop_factor * rules.stop_weight
+        + rules.base_risk
+        + priority_boost
+    )
+    risk = min(1.0, risk)
+
+    features = {
+        "risk_score": round(risk, 4),
+        "temperature_delta": round(temperature_delta, 2),
+        "distance_km": round(distance_km, 2),
+        "stops": stops,
+        "priority": priority,
+    }
+    explanations = {
+        "model": RULE_BASED_MODEL_VERSION,
+        "rules": [
+            {
+                "name": "ambient_temperature_delta",
+                "contribution": round(exposure * rules.temperature_weight, 4),
+                "detail": f"ambient deviates {temperature_delta:.1f}°C from the safe band",
+            },
+            {
+                "name": "trip_duration",
+                "contribution": round(duration_factor * rules.duration_weight, 4),
+                "detail": f"estimated distance {distance_km:.0f} km",
+            },
+            {
+                "name": "stop_frequency",
+                "contribution": round(stop_factor * rules.stop_weight, 4),
+                "detail": f"{stops} planned stops",
+            },
+            {
+                "name": "priority_boost",
+                "contribution": round(priority_boost, 4),
+                "detail": f"priority shipment ({priority})",
+            },
+        ],
+    }
+    return risk, features, explanations
 
 
 class IntelligenceService:
@@ -55,58 +163,91 @@ class IntelligenceService:
         self,
         prediction_repo: PredictionRepository,
         shipment_repo: ShipmentRepository,
-        weather_repo: WeatherCacheRepository,
+        weather_service: WeatherService,
         alert_repo: AlertRepository,
+        warehouse_repo: WarehouseRepository,
+        phc_repo: PhCentreRepository,
+        container_repo: ContainerRepository,
+        settings: Settings | None = None,
+        rules: PredictionRules | None = None,
     ) -> None:
         self._prediction_repo = prediction_repo
         self._shipment_repo = shipment_repo
-        self._weather_repo = weather_repo
+        self._weather_service = weather_service
         self._alert_repo = alert_repo
+        self._warehouses = warehouse_repo
+        self._phcs = phc_repo
+        self._containers = container_repo
+        self._settings = settings or get_settings()
+        self._rules = rules or PredictionRules.from_settings(self._settings)
 
     # ---- Weather ------------------------------------------------------------
 
     async def weather_at(self, latitude: float, longitude: float) -> WeatherSnapshot:
-        cached = await self._weather_repo.get(latitude, longitude)
-        if cached is not None:
-            return cached
-        snapshot = self._mock_weather(latitude, longitude)
-        await self._weather_repo.upsert(snapshot)
-        return snapshot
-
-    @staticmethod
-    def _mock_weather(latitude: float, longitude: float) -> WeatherSnapshot:
-        """Deterministic mock forecast so the prototype runs offline."""
-        seed = abs(int(latitude * 1000) + int(longitude * 1000))
-        temp = 16.0 + (seed % 240) / 10.0
-        humidity = 40.0 + (seed % 45)
-        wind = 5.0 + (seed % 25)
-        precip = 0.0 if seed % 3 == 0 else 2.0
-        condition = "sunny" if precip == 0.0 else "rainy"
-        return WeatherSnapshot(
-            latitude=latitude,
-            longitude=longitude,
-            temperature_c=round(temp, 1),
-            condition=condition,
-            humidity_pct=round(humidity, 1),
-            wind_kmh=round(wind, 1),
-            precipitation_mm=round(precip, 1),
-            is_mock=True,
-        )
+        return await self._weather_service.get_weather(latitude, longitude)
 
     # ---- Excursion risk prediction ------------------------------------------
 
     async def predict_excursion_risk(self, shipment: Shipment) -> Prediction:
-        """Score excursion risk using transparent rules and record explanations."""
-        features, explanations = self._score_risk(shipment)
-        risk = features["risk_score"]
+        """Score excursion risk using transparent rules and record explanations.
+
+        Uses real route geometry (warehouse → PHC coordinates) for the trip
+        distance, weather at the destination, and the container's safe band
+        when one is assigned. Confidence reflects the weather data source: live
+        observations score higher than the deterministic mock fallback.
+        """
+        warehouse = await self._warehouses.get(shipment.warehouse_id)
+        phc = await self._phcs.get(shipment.destination_id)
+        if warehouse is not None and phc is not None:
+            distance_km = _haversine_km(
+                warehouse.latitude,
+                warehouse.longitude,
+                phc.latitude,
+                phc.longitude,
+            )
+            weather = await self.weather_at(phc.latitude, phc.longitude)
+        else:
+            distance_km = self._rules.default_distance_km
+            weather = await self.weather_at(0.0, 0.0)
+
+        if shipment.container_id is not None:
+            container = await self._containers.get(shipment.container_id)
+            if container is not None:
+                band_min = container.min_temperature
+                band_max = container.max_temperature
+            else:
+                band_min, band_max = shipment.temperature_min, shipment.temperature_max
+        else:
+            band_min, band_max = shipment.temperature_min, shipment.temperature_max
+
+        if weather.temperature_c < band_min:
+            temperature_delta = band_min - weather.temperature_c
+        elif weather.temperature_c > band_max:
+            temperature_delta = weather.temperature_c - band_max
+        else:
+            temperature_delta = 0.0
+
+        risk, features, explanations = score_excursion_risk(
+            temperature_delta=temperature_delta,
+            distance_km=distance_km,
+            stops=self._rules.default_stops,
+            priority=shipment.priority.value,
+            rules=self._rules,
+        )
+        confidence = (
+            self._rules.confidence_live
+            if not weather.is_mock
+            else self._rules.confidence_mock
+        )
+
         prediction = Prediction(
             prediction_id=uuid4(),
             shipment_id=shipment.shipment_id,
             excursion_risk=round(risk, 4),
-            risk_level=_risk_level(risk),
-            confidence=0.82,
-            expected_min_temp=shipment.temperature_min,
-            expected_max_temp=shipment.temperature_max,
+            risk_level=_risk_level(risk, self._rules),
+            confidence=confidence,
+            expected_min_temp=band_min,
+            expected_max_temp=band_max,
             model_version=RULE_BASED_MODEL_VERSION,
             features=features,
             explanations=explanations,
@@ -114,63 +255,6 @@ class IntelligenceService:
         )
         await self._prediction_repo.create(prediction)
         return prediction
-
-    def _score_risk(self, shipment: Shipment) -> tuple[dict, dict]:
-        """Evaluate a set of weighted rules; returns (features, explanations).
-
-        Rules are deliberately simple and documented so a human can audit them:
-          - ambient temperature deviation from the container setpoint
-          - trip distance (longer trips expose the shipment longer)
-          - number of planned stops
-          - container battery / capacity state is unknown pre-dispatch, so we
-            approximate with a base exposure term.
-        """
-        weather = self._mock_weather(0.0, 0.0)  # placeholder; replaced by route weather
-        temperature_delta = abs(weather.temperature_c - shipment.temperature_max)
-        distance = 50.0
-        stops = 2
-        priority_boost = 0.10 if shipment.priority.value == "high" else 0.0
-
-        exposure = min(1.0, temperature_delta / 20.0)
-        duration_factor = min(1.0, distance / 300.0) * 0.35
-        stop_factor = min(1.0, stops / 10.0) * 0.15
-        base_factor = 0.10
-
-        risk = exposure * 0.5 + duration_factor + stop_factor + base_factor + priority_boost
-
-        features = {
-            "risk_score": min(1.0, risk),
-            "temperature_delta": round(temperature_delta, 2),
-            "distance_km": distance,
-            "stops": stops,
-            "priority": shipment.priority.value,
-        }
-        explanations = {
-            "model": RULE_BASED_MODEL_VERSION,
-            "rules": [
-                {
-                    "name": "ambient_temperature_delta",
-                    "contribution": round(exposure * 0.5, 4),
-                    "detail": f"ambient deviates {temperature_delta:.1f}°C from the safe band",
-                },
-                {
-                    "name": "trip_duration",
-                    "contribution": round(duration_factor, 4),
-                    "detail": f"estimated distance {distance:.0f} km",
-                },
-                {
-                    "name": "stop_frequency",
-                    "contribution": round(stop_factor, 4),
-                    "detail": f"{stops} planned stops",
-                },
-                {
-                    "name": "priority_boost",
-                    "contribution": round(priority_boost, 4),
-                    "detail": f"priority shipment ({shipment.priority.value})",
-                },
-            ],
-        }
-        return features, explanations
 
     # ---- Route optimisation ---------------------------------------------------
 

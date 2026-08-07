@@ -155,6 +155,10 @@ def to_weather_entity(model) -> WeatherSnapshot:
         wind_kmh=model.wind_kmh,
         precipitation_mm=model.precipitation_mm,
         is_mock=model.is_mock,
+        source=getattr(model, "source", "mock") or "mock",
+        forecast=dict(model.forecast or {}),
+        fetched_at=model.fetched_at,
+        expires_at=model.expires_at,
     )
 
 

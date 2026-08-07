@@ -1,23 +1,18 @@
-"""SQLAlchemy async repositories for shipments, predictions and weather cache."""
+"""SQLAlchemy async repositories for shipments and predictions."""
 
 import builtins
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
-from app.domain.entities.intelligence import Prediction, WeatherSnapshot
+from app.domain.entities.intelligence import Prediction
 from app.domain.entities.shipment import Shipment
 from app.models.prediction import Prediction as PredictionModel
 from app.models.shipment import Shipment as ShipmentModel
-from app.models.weather import WeatherCache as WeatherCacheModel
-from app.repositories.base import (
-    to_prediction_entity,
-    to_shipment_entity,
-    to_weather_entity,
-)
+from app.repositories.base import to_prediction_entity, to_shipment_entity
 
 
 class SqlAlchemyShipmentRepository:
@@ -281,60 +276,4 @@ class SqlAlchemyPredictionRepository:
         return query
 
 
-class SqlAlchemyWeatherCacheRepository:
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
 
-    async def get(self, latitude: float, longitude: float) -> WeatherSnapshot | None:
-        result = await self._session.execute(
-            select(WeatherCacheModel)
-            .where(
-                WeatherCacheModel.latitude == latitude,
-                WeatherCacheModel.longitude == longitude,
-            )
-            .limit(1)
-        )
-        model = result.scalar_one_or_none()
-        if model is None:
-            return None
-        if model.expires_at < datetime.now(UTC):
-            return None
-        return to_weather_entity(model)
-
-    async def upsert(self, snapshot: WeatherSnapshot) -> None:
-        now = datetime.now(UTC)
-        result = await self._session.execute(
-            select(WeatherCacheModel)
-            .where(
-                WeatherCacheModel.latitude == snapshot.latitude,
-                WeatherCacheModel.longitude == snapshot.longitude,
-            )
-            .limit(1)
-        )
-        model = result.scalar_one_or_none()
-        if model is None:
-            self._session.add(
-                WeatherCacheModel(
-                    latitude=snapshot.latitude,
-                    longitude=snapshot.longitude,
-                    temperature_c=snapshot.temperature_c,
-                    precipitation_mm=snapshot.precipitation_mm,
-                    wind_kmh=snapshot.wind_kmh,
-                    humidity_pct=snapshot.humidity_pct,
-                    condition=snapshot.condition,
-                    forecast={},
-                    is_mock=snapshot.is_mock,
-                    fetched_at=now,
-                    expires_at=now + timedelta(hours=1),
-                )
-            )
-        else:
-            model.temperature_c = snapshot.temperature_c
-            model.precipitation_mm = snapshot.precipitation_mm
-            model.wind_kmh = snapshot.wind_kmh
-            model.humidity_pct = snapshot.humidity_pct
-            model.condition = snapshot.condition
-            model.is_mock = snapshot.is_mock
-            model.fetched_at = now
-            model.expires_at = now + timedelta(hours=1)
-        await self._session.flush()
