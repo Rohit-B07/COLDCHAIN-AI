@@ -139,6 +139,36 @@ export interface ShipmentRead {
   deleted_at: string | null;
 }
 
+export type ShipmentSortField =
+  | "created_at"
+  | "tracking_code"
+  | "status"
+  | "priority"
+  | "vaccine_name"
+  | "estimated_delivery_at";
+
+export type ShipmentSortOrder = "asc" | "desc";
+
+/** Query parameters for the advanced shipment search endpoint. */
+export interface ShipmentQuery {
+  search?: string;
+  shipment_id?: string;
+  tracking_code?: string;
+  origin?: string;
+  destination?: string;
+  status?: ShipmentStatus;
+  priority?: PriorityLevel;
+  vaccine_type?: string;
+  created_after?: string;
+  created_before?: string;
+  expected_delivery_after?: string;
+  expected_delivery_before?: string;
+  sort_by?: ShipmentSortField;
+  sort_order?: ShipmentSortOrder;
+  page?: number;
+  size?: number;
+}
+
 export interface WaypointRead {
   id: string;
   route_id: string;

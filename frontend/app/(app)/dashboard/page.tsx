@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Bell,
   Boxes,
@@ -22,7 +22,9 @@ import {
 import { PageState } from "@/components/dashboard/page-state";
 import { PredictionHistoryTable } from "@/components/dashboard/prediction-history-table";
 import { PredictionRiskChart } from "@/components/dashboard/prediction-risk-chart";
+import { ShipmentSearchPanel } from "@/components/dashboard/shipment-search-panel";
 import { ShipmentStatusChart } from "@/components/dashboard/shipment-status-chart";
+import { ShipmentTable } from "@/components/dashboard/shipment-table";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { TemperatureTrendChart } from "@/components/dashboard/temperature-trend-chart";
 import { VehicleUtilizationChart } from "@/components/dashboard/vehicle-utilization-chart";
@@ -46,9 +48,11 @@ import {
 import { usePredictionHistory } from "@/hooks/use-prediction-history";
 import { useNotifications } from "@/hooks/use-notifications";
 import { useAnalytics } from "@/hooks/use-analytics";
+import { useShipmentsSearch } from "@/hooks/use-shipments-search";
 import type {
   AlertRead,
   PredictionRead,
+  ShipmentQuery,
   ShipmentRead,
   VehicleRead,
 } from "@/lib/types";
@@ -126,10 +130,21 @@ export default function DashboardPage() {
   const history = usePredictionHistory();
   const notifications = useNotifications();
   const analytics = useAnalytics();
+  const [shipmentQuery, setShipmentQuery] = useState<ShipmentQuery>({
+    sort_by: "created_at",
+    sort_order: "desc",
+    page: 1,
+    size: 10,
+  });
+  const shipmentSearch = useShipmentsSearch(shipmentQuery);
 
   const shipmentItems = useMemo(
     () => shipments.data?.items ?? [],
     [shipments.data],
+  );
+  const searchShipmentItems = useMemo(
+    () => shipmentSearch.data?.items ?? [],
+    [shipmentSearch.data],
   );
   const activeRouteCount = useMemo(
     () =>
@@ -358,6 +373,44 @@ export default function DashboardPage() {
               height="h-auto"
             >
               <PredictionHistoryTable items={historyItems} />
+            </PageState>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section aria-label="Shipment Search">
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">Shipment Search</CardTitle>
+                <CardDescription>
+                  Filter shipments by status, priority, vaccine, dates and sort
+                  order
+                </CardDescription>
+              </div>
+              {shipmentSearch.data ? (
+                <p className="text-sm text-muted-foreground">
+                  {shipmentSearch.data.total}{" "}
+                  {shipmentSearch.data.total === 1 ? "shipment" : "shipments"}
+                </p>
+              ) : null}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <ShipmentSearchPanel
+              value={shipmentQuery}
+              onChange={setShipmentQuery}
+            />
+            <PageState
+              isLoading={shipmentSearch.isLoading}
+              isError={shipmentSearch.isError}
+              isEmpty={searchShipmentItems.length === 0}
+              onRetry={() => void shipmentSearch.refetch()}
+              emptyMessage="No shipments match the current filters"
+              height="h-auto"
+            >
+              <ShipmentTable items={searchShipmentItems} />
             </PageState>
           </CardContent>
         </Card>

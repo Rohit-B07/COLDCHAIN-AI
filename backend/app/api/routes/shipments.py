@@ -61,8 +61,19 @@ async def list_shipments(
 ) -> ApiResponse[Page[ShipmentRead]]:
     items, total = await service.list(
         search=params.search,
+        shipment_id=params.shipment_id,
+        tracking_code=params.tracking_code,
+        origin=params.origin,
+        destination=params.destination,
         status=params.status.value if params.status else None,
         priority=params.priority.value if params.priority else None,
+        vaccine_type=params.vaccine_type,
+        created_after=params.created_after,
+        created_before=params.created_before,
+        expected_delivery_after=params.expected_delivery_after,
+        expected_delivery_before=params.expected_delivery_before,
+        sort_by=params.sort_by.value,
+        sort_order=params.sort_order.value,
         page=params.page,
         size=params.size,
     )

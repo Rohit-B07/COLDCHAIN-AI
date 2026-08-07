@@ -7,6 +7,7 @@ destination must exist, container and driver must be usable) are enforced here
 against the injected repositories.
 """
 
+from datetime import datetime
 from uuid import UUID
 
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
@@ -85,21 +86,63 @@ class ShipmentService:
         self,
         *,
         search: str | None,
+        shipment_id: UUID | None,
+        tracking_code: str | None,
+        origin: UUID | None,
+        destination: UUID | None,
         status: str | None,
         priority: str | None,
+        vaccine_type: str | None,
+        created_after: datetime | None,
+        created_before: datetime | None,
+        expected_delivery_after: datetime | None,
+        expected_delivery_before: datetime | None,
+        sort_by: str,
+        sort_order: str,
         page: int,
         size: int,
     ) -> tuple[list[Shipment], int]:
         offset = (page - 1) * size
-        total = await self._shipments.count(search=search, status=status, priority=priority)
+        total = await self._shipments.count(
+            search=search,
+            shipment_id=shipment_id,
+            tracking_code=tracking_code,
+            origin=origin,
+            destination=destination,
+            status=status,
+            priority=priority,
+            vaccine_type=vaccine_type,
+            created_after=created_after,
+            created_before=created_before,
+            expected_delivery_after=expected_delivery_after,
+            expected_delivery_before=expected_delivery_before,
+        )
         items = await self._shipments.list_paginated(
-            search=search, status=status, priority=priority, offset=offset, limit=size
+            search=search,
+            shipment_id=shipment_id,
+            tracking_code=tracking_code,
+            origin=origin,
+            destination=destination,
+            status=status,
+            priority=priority,
+            vaccine_type=vaccine_type,
+            created_after=created_after,
+            created_before=created_before,
+            expected_delivery_after=expected_delivery_after,
+            expected_delivery_before=expected_delivery_before,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            offset=offset,
+            limit=size,
         )
         return items, total
 
     async def update(self, shipment_id: UUID, payload: ShipmentUpdate) -> Shipment:
         entity = await self.get(shipment_id)
-        if payload.container_id is not None and payload.container_id != entity.container_id:
+        if (
+            payload.container_id is not None
+            and payload.container_id != entity.container_id
+        ):
             container = await self._containers.get(payload.container_id)
             if container is None:
                 raise NotFoundError("Container not found")

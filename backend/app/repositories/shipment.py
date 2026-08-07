@@ -14,6 +14,15 @@ from app.models.prediction import Prediction as PredictionModel
 from app.models.shipment import Shipment as ShipmentModel
 from app.repositories.base import to_prediction_entity, to_shipment_entity
 
+_SORTABLE_COLUMNS = {
+    "created_at": ShipmentModel.created_at,
+    "tracking_code": ShipmentModel.tracking_code,
+    "status": ShipmentModel.status_state,
+    "priority": ShipmentModel.priority,
+    "vaccine_name": ShipmentModel.vaccine_name,
+    "estimated_delivery_at": ShipmentModel.estimated_delivery_at,
+}
+
 
 class SqlAlchemyShipmentRepository:
     def __init__(self, session: AsyncSession) -> None:
@@ -92,14 +101,32 @@ class SqlAlchemyShipmentRepository:
         self,
         *,
         search: str | None = None,
+        shipment_id: UUID | None = None,
+        tracking_code: str | None = None,
+        origin: UUID | None = None,
+        destination: UUID | None = None,
         status: str | None = None,
         priority: str | None = None,
+        vaccine_type: str | None = None,
+        created_after: datetime | None = None,
+        created_before: datetime | None = None,
+        expected_delivery_after: datetime | None = None,
+        expected_delivery_before: datetime | None = None,
     ) -> int:
         query = self._apply_filters(
             select(func.count(ShipmentModel.id)),
             search=search,
+            shipment_id=shipment_id,
+            tracking_code=tracking_code,
+            origin=origin,
+            destination=destination,
             status=status,
             priority=priority,
+            vaccine_type=vaccine_type,
+            created_after=created_after,
+            created_before=created_before,
+            expected_delivery_after=expected_delivery_after,
+            expected_delivery_before=expected_delivery_before,
         ).where(ShipmentModel.is_deleted.is_(False))
         result = await self._session.execute(query)
         return int(result.scalar_one())
@@ -108,18 +135,40 @@ class SqlAlchemyShipmentRepository:
         self,
         *,
         search: str | None = None,
+        shipment_id: UUID | None = None,
+        tracking_code: str | None = None,
+        origin: UUID | None = None,
+        destination: UUID | None = None,
         status: str | None = None,
         priority: str | None = None,
+        vaccine_type: str | None = None,
+        created_after: datetime | None = None,
+        created_before: datetime | None = None,
+        expected_delivery_after: datetime | None = None,
+        expected_delivery_before: datetime | None = None,
+        sort_by: str = "created_at",
+        sort_order: str = "desc",
         offset: int = 0,
         limit: int = 20,
     ) -> builtins.list[Shipment]:
         query = self._apply_filters(
             select(ShipmentModel),
             search=search,
+            shipment_id=shipment_id,
+            tracking_code=tracking_code,
+            origin=origin,
+            destination=destination,
             status=status,
             priority=priority,
+            vaccine_type=vaccine_type,
+            created_after=created_after,
+            created_before=created_before,
+            expected_delivery_after=expected_delivery_after,
+            expected_delivery_before=expected_delivery_before,
         ).where(ShipmentModel.is_deleted.is_(False))
-        query = query.order_by(ShipmentModel.created_at.desc()).offset(offset).limit(limit)
+        column = _SORTABLE_COLUMNS.get(sort_by, ShipmentModel.created_at)
+        direction = column.asc() if sort_order == "asc" else column.desc()
+        query = query.order_by(direction).offset(offset).limit(limit)
         result = await self._session.execute(query)
         return [to_shipment_entity(model) for model in result.scalars().all()]
 
@@ -137,8 +186,17 @@ class SqlAlchemyShipmentRepository:
         query: Select,
         *,
         search: str | None,
+        shipment_id: UUID | None,
+        tracking_code: str | None,
+        origin: UUID | None,
+        destination: UUID | None,
         status: str | None,
         priority: str | None,
+        vaccine_type: str | None,
+        created_after: datetime | None,
+        created_before: datetime | None,
+        expected_delivery_after: datetime | None,
+        expected_delivery_before: datetime | None,
     ) -> Select:
         if search:
             pattern = f"%{search.strip().lower()}%"
@@ -148,10 +206,36 @@ class SqlAlchemyShipmentRepository:
                     ShipmentModel.vaccine_name.ilike(pattern),
                 )
             )
+        if shipment_id is not None:
+            query = query.where(ShipmentModel.id == shipment_id)
+        if tracking_code:
+            query = query.where(
+                ShipmentModel.tracking_code.ilike(f"%{tracking_code.strip().upper()}%")
+            )
+        if origin is not None:
+            query = query.where(ShipmentModel.warehouse_id == origin)
+        if destination is not None:
+            query = query.where(ShipmentModel.destination_id == destination)
         if status:
             query = query.where(ShipmentModel.status_state == status.strip().lower())
         if priority:
             query = query.where(ShipmentModel.priority == priority.strip().lower())
+        if vaccine_type:
+            query = query.where(
+                ShipmentModel.vaccine_name.ilike(f"%{vaccine_type.strip()}%")
+            )
+        if created_after is not None:
+            query = query.where(ShipmentModel.created_at >= created_after)
+        if created_before is not None:
+            query = query.where(ShipmentModel.created_at <= created_before)
+        if expected_delivery_after is not None:
+            query = query.where(
+                ShipmentModel.estimated_delivery_at >= expected_delivery_after
+            )
+        if expected_delivery_before is not None:
+            query = query.where(
+                ShipmentModel.estimated_delivery_at <= expected_delivery_before
+            )
         return query
 
 
@@ -231,7 +315,11 @@ class SqlAlchemyPredictionRepository:
             risk_level=risk_level,
             model_version=model_version,
         )
-        query = query.order_by(PredictionModel.created_at.desc()).offset(offset).limit(limit)
+        query = (
+            query.order_by(PredictionModel.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
         result = await self._session.execute(query)
         return [to_prediction_entity(model) for model in result.scalars().all()]
 
@@ -270,10 +358,9 @@ class SqlAlchemyPredictionRepository:
         if shipment_id is not None:
             query = query.where(PredictionModel.shipment_id == shipment_id)
         if risk_level:
-            query = query.where(PredictionModel.risk_level == risk_level.strip().lower())
+            query = query.where(
+                PredictionModel.risk_level == risk_level.strip().lower()
+            )
         if model_version:
             query = query.where(PredictionModel.model_version == model_version.strip())
         return query
-
-
-

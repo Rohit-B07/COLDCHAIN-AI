@@ -191,15 +191,35 @@ class ShipmentRepository(Protocol):
         self,
         *,
         search: str | None = None,
+        shipment_id: UUID | None = None,
+        tracking_code: str | None = None,
+        origin: UUID | None = None,
+        destination: UUID | None = None,
         status: str | None = None,
         priority: str | None = None,
+        vaccine_type: str | None = None,
+        created_after: datetime | None = None,
+        created_before: datetime | None = None,
+        expected_delivery_after: datetime | None = None,
+        expected_delivery_before: datetime | None = None,
     ) -> int: ...
     async def list_paginated(
         self,
         *,
         search: str | None = None,
+        shipment_id: UUID | None = None,
+        tracking_code: str | None = None,
+        origin: UUID | None = None,
+        destination: UUID | None = None,
         status: str | None = None,
         priority: str | None = None,
+        vaccine_type: str | None = None,
+        created_after: datetime | None = None,
+        created_before: datetime | None = None,
+        expected_delivery_after: datetime | None = None,
+        expected_delivery_before: datetime | None = None,
+        sort_by: str = "created_at",
+        sort_order: str = "desc",
         offset: int = 0,
         limit: int = 20,
     ) -> builtins.list[Shipment]: ...
@@ -264,7 +284,9 @@ class PredictionRepository(Protocol):
 
 
 class WeatherCacheRepository(Protocol):
-    async def get(self, latitude: float, longitude: float) -> WeatherSnapshot | None: ...
+    async def get(
+        self, latitude: float, longitude: float
+    ) -> WeatherSnapshot | None: ...
     async def upsert(self, snapshot: WeatherSnapshot) -> None: ...
     async def list_cached(self) -> list[WeatherSnapshot]: ...
     async def delete(self, latitude: float, longitude: float) -> None: ...
@@ -274,7 +296,9 @@ class AlertRepository(Protocol):
     async def create(self, entity: ColdAlert) -> ColdAlert: ...
     async def get(self, alert_id: UUID) -> ColdAlert | None: ...
     async def list(self, status: str | None = None) -> builtins.list[ColdAlert]: ...
-    async def list_for_shipment(self, shipment_id: UUID) -> builtins.list[ColdAlert]: ...
+    async def list_for_shipment(
+        self, shipment_id: UUID
+    ) -> builtins.list[ColdAlert]: ...
     async def count(
         self,
         *,

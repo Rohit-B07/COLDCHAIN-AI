@@ -1,5 +1,6 @@
 """Shipment DTOs."""
 
+import enum
 from datetime import datetime
 from uuid import UUID
 
@@ -80,14 +81,57 @@ class ShipmentRead(BaseModel):
     deleted_at: datetime | None = None
 
 
+class ShipmentSortField(str, enum.Enum):
+    CREATED_AT = "created_at"
+    TRACKING_CODE = "tracking_code"
+    STATUS = "status"
+    PRIORITY = "priority"
+    VACCINE_NAME = "vaccine_name"
+    ESTIMATED_DELIVERY_AT = "estimated_delivery_at"
+
+
+class ShipmentSortOrder(str, enum.Enum):
+    ASC = "asc"
+    DESC = "desc"
+
+
 class ShipmentQueryParams(BaseModel):
     """Query params for listing and filtering shipments."""
 
     page: int = Field(default=1, ge=1)
     size: int = Field(default=20, ge=1, le=100)
     search: str | None = Field(default=None, max_length=100)
+    shipment_id: UUID | None = None
+    tracking_code: str | None = Field(default=None, max_length=64)
+    origin: UUID | None = None
+    destination: UUID | None = None
     status: ShipmentStatus | None = None
     priority: Priority | None = None
+    vaccine_type: str | None = Field(default=None, max_length=255)
+    created_after: datetime | None = None
+    created_before: datetime | None = None
+    expected_delivery_after: datetime | None = None
+    expected_delivery_before: datetime | None = None
+    sort_by: ShipmentSortField = ShipmentSortField.CREATED_AT
+    sort_order: ShipmentSortOrder = ShipmentSortOrder.DESC
+
+    @model_validator(mode="after")
+    def _validate_date_ranges(self) -> "ShipmentQueryParams":
+        if (
+            self.created_after is not None
+            and self.created_before is not None
+            and self.created_after > self.created_before
+        ):
+            raise ValueError("created_after must be before created_before")
+        if (
+            self.expected_delivery_after is not None
+            and self.expected_delivery_before is not None
+            and self.expected_delivery_after > self.expected_delivery_before
+        ):
+            raise ValueError(
+                "expected_delivery_after must be before expected_delivery_before"
+            )
+        return self
 
 
 class DispatchRequest(BaseModel):
