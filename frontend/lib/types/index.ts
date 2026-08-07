@@ -245,3 +245,82 @@ export interface PredictionRead {
   explanations: Record<string, unknown>;
   created_at: string | null;
 }
+
+/** History-contract row returned by `/predictions/history`. */
+export interface PredictionHistoryItem {
+  id: string;
+  shipment_id: string;
+  risk_score: number;
+  risk_level: RiskLevel;
+  confidence: number;
+  weather_summary: string;
+  predicted_at: string;
+  created_at: string;
+}
+
+export type PredictionHistoryPage = Page<PredictionHistoryItem>;
+
+export type NotificationType = "prediction" | "alert" | "shipment" | "system";
+
+/** Item in the aggregated notification feed (`/notifications`). */
+export interface NotificationItem {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  severity: AlertSeverity;
+  created_at: string;
+  shipment_id: string | null;
+  prediction_id: string | null;
+  read: boolean;
+}
+
+/** Feed envelope returned by `/notifications` (Page shape + unread count). */
+export interface NotificationFeed {
+  items: NotificationItem[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
+  unread_count: number;
+}
+
+/** Operational KPI groups returned by `/analytics/dashboard`. */
+export interface ShipmentStats {
+  total: number;
+  active: number;
+  completed: number;
+  delayed: number;
+}
+
+export interface PredictionStats {
+  total: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+}
+
+export interface AlertStats {
+  open: number;
+  resolved: number;
+}
+
+export interface NotificationStats {
+  unread: number;
+  total: number;
+}
+
+export interface TemperatureStats {
+  average: number;
+  maximum: number;
+  minimum: number;
+}
+
+export interface AnalyticsDashboardResponse {
+  shipments: ShipmentStats;
+  predictions: PredictionStats;
+  alerts: AlertStats;
+  notifications: NotificationStats;
+  temperature: TemperatureStats;
+}

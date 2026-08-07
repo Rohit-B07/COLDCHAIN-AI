@@ -68,3 +68,28 @@ class PredictionQueryParams(BaseModel):
     model_version: str | None = None
     page: int = Field(default=1, ge=1)
     size: int = Field(default=20, ge=1, le=100)
+
+
+class PredictionHistoryItem(BaseModel):
+    """History-contract row for the prediction feed.
+
+    A focused read model over a stored prediction: renames ``excursion_risk``
+    to ``risk_score``, maps ``created_at`` to ``predicted_at`` and carries a
+    derived, human-readable ``weather_summary``.
+    """
+
+    id: UUID
+    shipment_id: UUID
+    risk_score: float
+    risk_level: RiskLevelValue
+    confidence: float
+    weather_summary: str
+    predicted_at: datetime
+    created_at: datetime
+
+
+class PredictionHistoryQueryParams(BaseModel):
+    shipment_id: UUID | None = None
+    risk_level: RiskLevelValue | None = None
+    page: int = Field(default=1, ge=1)
+    size: int = Field(default=20, ge=1, le=100)

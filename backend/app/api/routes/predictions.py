@@ -5,18 +5,24 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
-from app.api.deps.container import get_prediction_service
+from app.api.deps.container import (
+    get_prediction_history_service,
+    get_prediction_service,
+)
 from app.api.deps.rbac import require_permissions
 from app.domain.entities.intelligence import Prediction
 from app.domain.permissions import Permission
 from app.schemas.common import ApiResponse, Page
 from app.schemas.prediction import (
     PredictionCreate,
+    PredictionHistoryItem,
+    PredictionHistoryQueryParams,
     PredictionQueryParams,
     PredictionRead,
     PredictionUpdate,
     RiskLevelValue,
 )
+from app.services.prediction_history_service import PredictionHistoryService
 from app.services.prediction_service import PredictionService
 
 router = APIRouter(prefix="/predictions", tags=["predictions"])
@@ -62,6 +68,36 @@ async def list_predictions(
     return ApiResponse(
         data=Page[PredictionRead](
             items=[_read(prediction) for prediction in items],
+            total=total,
+            page=params.page,
+            size=params.size,
+            pages=pages,
+        )
+    )
+
+
+@router.get(
+    "/history",
+    response_model=ApiResponse[Page[PredictionHistoryItem]],
+    summary="List prediction history (paginated and filtered)",
+    dependencies=[_ViewPredictions],
+)
+async def list_prediction_history(
+    params: Annotated[PredictionHistoryQueryParams, Query()],
+    service: Annotated[
+        PredictionHistoryService, Depends(get_prediction_history_service)
+    ],
+) -> ApiResponse[Page[PredictionHistoryItem]]:
+    items, total = await service.list(
+        shipment_id=params.shipment_id,
+        risk_level=params.risk_level,
+        page=params.page,
+        size=params.size,
+    )
+    pages = (total + params.size - 1) // params.size if total else 0
+    return ApiResponse(
+        data=Page[PredictionHistoryItem](
+            items=items,
             total=total,
             page=params.page,
             size=params.size,

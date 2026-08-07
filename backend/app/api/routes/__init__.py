@@ -4,10 +4,12 @@ from fastapi import APIRouter
 
 from app.api.routes import (
     alerts,
+    analytics,
     auth,
     drivers,
     health,
     intelligence,
+    notifications,
     phcs,
     predictions,
     routes,
@@ -30,5 +32,7 @@ api_router.include_router(shipments.router)
 api_router.include_router(routes.router)
 api_router.include_router(predictions.router)
 api_router.include_router(alerts.router)
+api_router.include_router(notifications.router)
+api_router.include_router(analytics.router)
 api_router.include_router(weather.router)
 api_router.include_router(intelligence.prediction_router)

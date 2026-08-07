@@ -13,12 +13,26 @@ import {
 } from "lucide-react";
 
 import { AlertSeverityChart } from "@/components/dashboard/alert-severity-chart";
+import { AnalyticsSummary } from "@/components/dashboard/analytics-summary";
 import { ChartCard } from "@/components/dashboard/chart-card";
+import {
+  NotificationPanel,
+  NotificationSummary,
+} from "@/components/dashboard/notification-panel";
+import { PageState } from "@/components/dashboard/page-state";
+import { PredictionHistoryTable } from "@/components/dashboard/prediction-history-table";
 import { PredictionRiskChart } from "@/components/dashboard/prediction-risk-chart";
 import { ShipmentStatusChart } from "@/components/dashboard/shipment-status-chart";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { TemperatureTrendChart } from "@/components/dashboard/temperature-trend-chart";
 import { VehicleUtilizationChart } from "@/components/dashboard/vehicle-utilization-chart";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   useAlerts,
   useDrivers,
@@ -29,6 +43,9 @@ import {
   useVehicles,
   useWarehouses,
 } from "@/hooks/use-dashboard";
+import { usePredictionHistory } from "@/hooks/use-prediction-history";
+import { useNotifications } from "@/hooks/use-notifications";
+import { useAnalytics } from "@/hooks/use-analytics";
 import type {
   AlertRead,
   PredictionRead,
@@ -106,6 +123,9 @@ export default function DashboardPage() {
   const drivers = useDrivers();
   const alerts = useAlerts();
   const predictions = usePredictions();
+  const history = usePredictionHistory();
+  const notifications = useNotifications();
+  const analytics = useAnalytics();
 
   const shipmentItems = useMemo(
     () => shipments.data?.items ?? [],
@@ -126,6 +146,11 @@ export default function DashboardPage() {
   const predictionItems = useMemo(
     () => predictions.data?.items ?? [],
     [predictions.data],
+  );
+  const historyItems = useMemo(() => history.data?.items ?? [], [history.data]);
+  const notificationItems = useMemo(
+    () => notifications.data?.items ?? [],
+    [notifications.data],
   );
 
   const totalOpenAlerts = useMemo(
@@ -234,6 +259,23 @@ export default function DashboardPage() {
         />
       </section>
 
+      <section aria-label="Operational Insights">
+        <div className="mb-3">
+          <h2 className="text-base font-semibold tracking-tight">
+            Operational Insights
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Key performance indicators across the cold-chain operation
+          </p>
+        </div>
+        <AnalyticsSummary
+          data={analytics.data}
+          isLoading={analytics.isLoading}
+          isError={analytics.isError}
+          onRetry={() => void analytics.refetch()}
+        />
+      </section>
+
       <section aria-label="Analytics" className="grid gap-4 lg:grid-cols-2">
         <ChartCard
           title="Shipment Status"
@@ -296,6 +338,58 @@ export default function DashboardPage() {
         >
           <PredictionRiskChart data={predictionRiskData(predictionItems)} />
         </ChartCard>
+      </section>
+
+      <section aria-label="Prediction History">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Prediction History</CardTitle>
+            <CardDescription>
+              Recent temperature-excursion risk predictions, newest first
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <PageState
+              isLoading={history.isLoading}
+              isError={history.isError}
+              isEmpty={historyItems.length === 0}
+              onRetry={() => void history.refetch()}
+              emptyMessage="No predictions recorded"
+              height="h-auto"
+            >
+              <PredictionHistoryTable items={historyItems} />
+            </PageState>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section aria-label="Notification Center">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Notification Center</CardTitle>
+            <CardDescription>
+              Latest cold-chain events across alerts, predictions and shipments
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {notifications.data ? (
+              <NotificationSummary
+                total={notifications.data.total}
+                unread={notifications.data.unread_count}
+              />
+            ) : null}
+            <PageState
+              isLoading={notifications.isLoading}
+              isError={notifications.isError}
+              isEmpty={notificationItems.length === 0}
+              onRetry={() => void notifications.refetch()}
+              emptyMessage="No notifications yet"
+              height="h-auto"
+            >
+              <NotificationPanel items={notificationItems} />
+            </PageState>
+          </CardContent>
+        </Card>
       </section>
     </div>
   );

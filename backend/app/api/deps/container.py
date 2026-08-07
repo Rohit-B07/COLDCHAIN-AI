@@ -54,10 +54,13 @@ from app.repositories.user import (
 )
 from app.repositories.weather import SqlAlchemyWeatherCacheRepository
 from app.services.alert_service import AlertService
+from app.services.analytics_service import AnalyticsService
 from app.services.auth_service import AuthService
 from app.services.driver_service import DriverService
 from app.services.intelligence_service import IntelligenceService
+from app.services.notification_service import NotificationService
 from app.services.phc_service import PhcService
+from app.services.prediction_history_service import PredictionHistoryService
 from app.services.prediction_service import PredictionService
 from app.services.route_service import RouteService
 from app.services.shipment_service import ShipmentService
@@ -150,7 +153,9 @@ def get_auth_service(
 
 
 def get_intelligence_service(
-    prediction_repo: Annotated[PredictionRepository, Depends(get_prediction_repository)],
+    prediction_repo: Annotated[
+        PredictionRepository, Depends(get_prediction_repository)
+    ],
     shipment_repo: Annotated[ShipmentRepository, Depends(get_shipment_repository)],
     weather_service: Annotated[WeatherService, Depends(get_weather_service)],
     alert_repo: Annotated[AlertRepository, Depends(get_alert_repository)],
@@ -238,6 +243,24 @@ def get_prediction_service(
     )
 
 
+def get_prediction_history_service(
+    prediction_service: Annotated[PredictionService, Depends(get_prediction_service)],
+) -> PredictionHistoryService:
+    return PredictionHistoryService(prediction_service=prediction_service)
+
+
+def get_notification_service(
+    predictions: Annotated[PredictionRepository, Depends(get_prediction_repository)],
+    alerts: Annotated[AlertRepository, Depends(get_alert_repository)],
+    shipments: Annotated[ShipmentRepository, Depends(get_shipment_repository)],
+) -> NotificationService:
+    return NotificationService(
+        prediction_repo=predictions,
+        alert_repo=alerts,
+        shipment_repo=shipments,
+    )
+
+
 def get_alert_service(
     alerts: Annotated[AlertRepository, Depends(get_alert_repository)],
     shipments: Annotated[ShipmentRepository, Depends(get_shipment_repository)],
@@ -247,4 +270,20 @@ def get_alert_service(
         alert_repo=alerts,
         shipment_repo=shipments,
         container_repo=containers,
+    )
+
+
+def get_analytics_service(
+    shipments: Annotated[ShipmentRepository, Depends(get_shipment_repository)],
+    predictions: Annotated[PredictionRepository, Depends(get_prediction_repository)],
+    alerts: Annotated[AlertRepository, Depends(get_alert_repository)],
+    notification_service: Annotated[
+        NotificationService, Depends(get_notification_service)
+    ],
+) -> AnalyticsService:
+    return AnalyticsService(
+        shipment_repo=shipments,
+        prediction_repo=predictions,
+        alert_repo=alerts,
+        notification_service=notification_service,
     )
